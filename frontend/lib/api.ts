@@ -82,6 +82,11 @@ export const suppliersApi = {
   list: () => apiFetch('/v1/suppliers'),
 };
 
+export const foodIndexApi = {
+  get: () => apiFetch('/v1/food-index'),
+  recompute: () => apiFetch('/v1/food-index/recompute', { method: 'POST' }),
+};
+
 export const catalogApi = {
   list: () => apiFetch('/v1/commodities/catalog'),
   refresh: () => apiFetch('/v1/commodities/catalog/refresh', { method: 'POST' }),

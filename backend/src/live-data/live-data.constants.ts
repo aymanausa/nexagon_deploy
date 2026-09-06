@@ -25,6 +25,7 @@ export const LIVE_DATASETS: LiveDataset[] = [
       { module: 'Dashboard Overview', path: '/dashboard', note: 'KPIs & latest prices' },
       { module: 'AI Insights', path: '/commodities', note: 'Right-panel insights' },
       { module: 'Settings', path: '/settings', note: 'Dashboard Commodities catalog' },
+      { module: 'Risk Heatmap', path: '/risk-heatmap', note: 'Access › Affordability sub-indicator' },
     ],
   },
   {
@@ -38,6 +39,7 @@ export const LIVE_DATASETS: LiveDataset[] = [
     consumers: [
       { module: 'Dashboard Overview', path: '/dashboard', note: 'Self-Sufficiency Radar' },
       { module: 'AI Insights', path: '/dashboard', note: 'Radar explanation' },
+      { module: 'Risk Heatmap', path: '/risk-heatmap', note: 'Availability › Production sub-indicator' },
     ],
   },
   {
@@ -51,6 +53,7 @@ export const LIVE_DATASETS: LiveDataset[] = [
     consumers: [
       { module: 'Stock Levels', path: '/stock-levels', note: 'Reserve levels & days of supply' },
       { module: 'AI Insights', path: '/stock-levels', note: 'Reserve insights' },
+      { module: 'Risk Heatmap', path: '/risk-heatmap', note: 'Availability › Reserves sub-indicator' },
     ],
   },
   {
@@ -68,6 +71,7 @@ export const LIVE_DATASETS: LiveDataset[] = [
     ],
     consumers: [
       { module: 'Suppliers', path: '/suppliers', note: 'Map + top supplier table + risk, climate & country-health overlays' },
+      { module: 'Risk Heatmap', path: '/risk-heatmap', note: 'GeoRisk, Climate, SupplyChain, FoodSafety, ImportCapacity sub-indicators' },
       { module: 'AI Insights', path: '/suppliers', note: 'Supplier insights' },
     ],
   },

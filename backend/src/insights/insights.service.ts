@@ -115,6 +115,19 @@ export class InsightsService {
         ),
       };
     }
+    // food-security composite index — whole page or one clicked pillar
+    if (context === 'food-index' || context === 'risk-heatmap') {
+      const indicators = await this.prisma.indexIndicator.findMany();
+      if (indicators.length === 0) return { title: 'Food-Security Index', facts: [] };
+      const line = (i: any) => `${i.label} (${i.pillar}): ${i.score != null ? `${i.score}/100` : 'pending'}${i.rawValue ? ` — ${i.rawValue}` : ''}`;
+      if (focus && focus !== 'overall') {
+        const subs = indicators.filter((i) => i.pillar === focus);
+        if (subs.length) return { title: `${focus} pillar`, facts: subs.map(line) };
+        const one = indicators.find((i) => i.key === focus);
+        if (one) return { title: one.label, facts: [line(one)] };
+      }
+      return { title: 'KSA Food-Security Index', facts: indicators.filter((i) => i.score != null).sort((a, b) => (a.score as number) - (b.score as number)).map(line) };
+    }
     switch (context) {
       case 'commodities': {
         const rows = await this.prisma.commodityPrice.findMany({ orderBy: { recordedAt: 'desc' }, take: 300 });

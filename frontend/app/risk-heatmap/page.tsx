@@ -1,114 +1,135 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { AlertTriangle, Shield, Info } from 'lucide-react';
+import { Shield, ChevronDown, ChevronRight, Target } from 'lucide-react';
+import { foodIndexApi } from '@/lib/api';
+import { useInsightsFocus } from '@/hooks/useInsightsFocus';
 
-const riskDomains = [
-  { id: 1, domain: 'Import Dependency', score: 82, level: 'CRITICAL', owner: 'SALIC', trend: 'up' },
-  { id: 2, domain: 'Climate & Water', score: 76, level: 'HIGH', owner: 'MEWA', trend: 'up' },
-  { id: 3, domain: 'Geopolitical', score: 71, level: 'HIGH', owner: 'MOFA', trend: 'stable' },
-  { id: 4, domain: 'Supply Chain', score: 68, level: 'HIGH', owner: 'SALIC', trend: 'up' },
-  { id: 5, domain: 'Price Volatility', score: 65, level: 'MEDIUM', owner: 'SAGIA', trend: 'down' },
-  { id: 6, domain: 'Food Safety', score: 58, level: 'MEDIUM', owner: 'SFDA', trend: 'stable' },
-  { id: 7, domain: 'Infrastructure', score: 52, level: 'MEDIUM', owner: 'MOT', trend: 'down' },
-  { id: 8, domain: 'Strategic Reserves', score: 48, level: 'LOW', owner: 'SALIC', trend: 'stable' },
-  { id: 9, domain: 'Local Production', score: 45, level: 'LOW', owner: 'MEWA', trend: 'down' },
-  { id: 10, domain: 'Maritime Security', score: 73, level: 'HIGH', owner: 'MOD', trend: 'up' },
-  { id: 11, domain: 'Cybersecurity', score: 62, level: 'MEDIUM', owner: 'NCSA', trend: 'up' },
-  { id: 12, domain: 'Livestock Disease', score: 55, level: 'MEDIUM', owner: 'MEWA', trend: 'stable' },
-];
+interface Indicator { key: string; label: string; weight: number; score: number | null; rawValue: string | null; source: string; status: string }
+interface Pillar { key: string; label: string; weight: number; target: number; score: number | null; activeCount: number; total: number; indicators: Indicator[] }
+interface IndexData { overall: number; overallTarget: number; pillars: Pillar[] }
 
-function getScoreColor(score: number): string {
-  if (score >= 80) return 'bg-red-500';
-  if (score >= 60) return 'bg-orange-500';
-  if (score >= 40) return 'bg-amber-500';
-  return 'bg-emerald-500';
+// score (0-100, higher = healthier) vs target → colour
+function scoreColor(score: number | null, target: number): string {
+  if (score == null) return 'bg-[#334155]';
+  if (score >= target) return 'bg-emerald-500';
+  if (score >= target - 15) return 'bg-amber-500';
+  if (score >= target - 30) return 'bg-orange-500';
+  return 'bg-red-500';
 }
-
-function getScoreBg(score: number): string {
-  if (score >= 80) return 'bg-red-500/10 border-red-500/30';
-  if (score >= 60) return 'bg-orange-500/10 border-orange-500/30';
-  if (score >= 40) return 'bg-amber-500/10 border-amber-500/30';
-  return 'bg-emerald-500/10 border-emerald-500/30';
+function scoreText(score: number | null, target: number): string {
+  if (score == null) return 'text-[#64748b]';
+  if (score >= target) return 'text-emerald-400';
+  if (score >= target - 15) return 'text-amber-400';
+  if (score >= target - 30) return 'text-orange-400';
+  return 'text-red-400';
 }
 
 export default function RiskHeatmapPage() {
+  const [data, setData] = useState<IndexData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const { setFocus } = useInsightsFocus();
+
+  useEffect(() => {
+    foodIndexApi.get().then(setData).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const toggle = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }));
+
   return (
     <DashboardLayout>
-      {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-red-400" />
-            <span className="text-sm text-red-400 font-semibold">Critical</span>
-          </div>
-          <p className="text-3xl font-bold text-white">1</p>
-          <p className="text-xs text-[#94a3b8]">Domain requires immediate action</p>
-        </div>
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-orange-400" />
-            <span className="text-sm text-orange-400 font-semibold">High</span>
-          </div>
-          <p className="text-3xl font-bold text-white">4</p>
-          <p className="text-xs text-[#94a3b8]">Domains need attention</p>
-        </div>
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Info className="w-5 h-5 text-amber-400" />
-            <span className="text-sm text-amber-400 font-semibold">Medium</span>
-          </div>
-          <p className="text-3xl font-bold text-white">4</p>
-          <p className="text-xs text-[#94a3b8]">Domains being monitored</p>
-        </div>
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Shield className="w-5 h-5 text-emerald-400" />
-            <span className="text-sm text-emerald-400 font-semibold">Low</span>
-          </div>
-          <p className="text-3xl font-bold text-white">3</p>
-          <p className="text-xs text-[#94a3b8]">Domains stable</p>
-        </div>
-      </div>
+      <p className="text-sm text-[#94a3b8] mb-4 flex items-center gap-2">
+        <Shield className="w-4 h-4 text-[#c8a45c]" /> KSA Food-Security Index — 4 pillars, 16 sub-indicators (0–100, higher = healthier). Pending sub-indicators are excluded and weights re-normalised.
+      </p>
 
-      {/* Heatmap Grid */}
-      <div className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-6">
-        <h3 className="font-semibold text-white mb-4">12-Domain Risk Assessment Matrix</h3>
-        <div className="space-y-3">
-          {riskDomains.sort((a, b) => b.score - a.score).map((domain) => (
-            <div
-              key={domain.id}
-              className={`flex items-center gap-4 p-4 rounded-lg border ${getScoreBg(domain.score)} transition-all hover:scale-[1.01]`}
-            >
-              <div className="w-12 h-12 rounded-lg bg-[#080e1a] flex items-center justify-center">
-                <span className="text-lg font-bold text-white">{domain.score}</span>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-white">{domain.domain}</p>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    domain.level === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
-                    domain.level === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
-                    domain.level === 'MEDIUM' ? 'bg-amber-500/20 text-amber-400' :
-                    'bg-emerald-500/20 text-emerald-400'
-                  }`}>
-                    {domain.level}
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 mt-1 text-xs text-[#94a3b8]">
-                  <span>Owner: {domain.owner}</span>
-                  <span>Trend: {domain.trend === 'up' ? 'Rising' : domain.trend === 'down' ? 'Improving' : 'Stable'}</span>
-                </div>
-              </div>
-              <div className="w-32">
-                <div className="h-2 bg-[#1a2d45] rounded-full overflow-hidden">
-                  <div className={`h-full ${getScoreColor(domain.score)} rounded-full`} style={{ width: `${domain.score}%` }} />
-                </div>
+      {loading && <p className="text-[#94a3b8] text-sm">Computing index…</p>}
+
+      {data && (
+        <>
+          {/* Overall hero */}
+          <div className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-6 mb-6 flex items-center gap-6">
+            <div className="relative w-28 h-28 shrink-0">
+              <svg viewBox="0 0 36 36" className="w-28 h-28 -rotate-90">
+                <path d="M18 2 a16 16 0 1 1 0 32 a16 16 0 1 1 0 -32" fill="none" stroke="#1a2d45" strokeWidth="3" />
+                <path d="M18 2 a16 16 0 1 1 0 32 a16 16 0 1 1 0 -32" fill="none"
+                  stroke={data.overall >= data.overallTarget ? '#10b981' : data.overall >= data.overallTarget - 15 ? '#f59e0b' : '#ef4444'}
+                  strokeWidth="3" strokeDasharray={`${data.overall}, 100`} strokeLinecap="round" />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold text-white">{data.overall}</span>
+                <span className="text-[10px] text-[#94a3b8]">/ 100</span>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+            <div>
+              <h2 className="text-lg font-bold text-white">Overall Food-Security Score</h2>
+              <p className="text-sm text-[#94a3b8] flex items-center gap-1.5 mt-1"><Target className="w-3.5 h-3.5" /> Target {data.overallTarget} · {data.overall >= data.overallTarget ? 'on target' : `${data.overallTarget - data.overall} below target`}</p>
+              <p className="text-xs text-[#64748b] mt-2 max-w-md">Composite of Availability (30%), Access (25%), Utilization (20%) and Stability (25%).</p>
+            </div>
+          </div>
+
+          {/* Pillar cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {data.pillars.map((p) => (
+              <div key={p.key} className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => { toggle(p.key); setFocus({ context: 'food-index', key: p.key, label: `${p.label} pillar` }); }}
+                  className="w-full flex items-center gap-4 p-5 hover:bg-white/5 transition-colors text-left"
+                >
+                  {open[p.key] ? <ChevronDown className="w-4 h-4 text-[#94a3b8]" /> : <ChevronRight className="w-4 h-4 text-[#94a3b8]" />}
+                  <div className={`w-14 h-14 rounded-lg bg-[#080e1a] flex items-center justify-center ${scoreText(p.score, p.target)}`}>
+                    <span className="text-xl font-bold">{p.score ?? '—'}</span>
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-white">{p.label}</p>
+                      <span className="text-[10px] text-[#94a3b8] px-1.5 py-0.5 rounded bg-[#080e1a] border border-[#1a2d45]">{Math.round(p.weight * 100)}%</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <div className="flex-1 h-2 bg-[#1a2d45] rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${scoreColor(p.score, p.target)}`} style={{ width: `${p.score ?? 0}%` }} />
+                      </div>
+                      <span className="text-[10px] text-[#64748b] shrink-0">t{p.target}</span>
+                    </div>
+                    <p className="text-[11px] text-[#64748b] mt-1">{p.activeCount}/{p.total} sub-indicators active</p>
+                  </div>
+                </button>
+
+                {open[p.key] && (
+                  <div className="border-t border-[#1a2d45] divide-y divide-[#1a2d45]/60">
+                    {p.indicators.map((ind) => (
+                      <div
+                        key={ind.key}
+                        onClick={() => setFocus({ context: 'food-index', key: ind.key, label: ind.label })}
+                        className="flex items-center gap-3 px-5 py-3 hover:bg-white/5 transition-colors cursor-pointer"
+                      >
+                        <div className="w-10 text-center">
+                          {ind.status === 'active' && ind.score != null
+                            ? <span className={`text-sm font-bold ${scoreText(ind.score, p.target)}`}>{ind.score}</span>
+                            : <span className="text-[10px] text-[#64748b] px-1 py-0.5 rounded bg-[#080e1a]">pending</span>}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-white truncate">{ind.label}</p>
+                            <span className="text-[10px] text-[#64748b]">{Math.round(ind.weight * 100)}%</span>
+                          </div>
+                          <p className="text-[11px] text-[#64748b] truncate">{ind.rawValue || ind.source}</p>
+                        </div>
+                        {ind.status === 'active' && ind.score != null && (
+                          <div className="w-20 h-1.5 bg-[#1a2d45] rounded-full overflow-hidden shrink-0">
+                            <div className={`h-full rounded-full ${scoreColor(ind.score, p.target)}`} style={{ width: `${ind.score}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </DashboardLayout>
   );
 }

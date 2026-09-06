@@ -19,6 +19,7 @@ import { LiveDataModule } from './live-data/live-data.module';
 import { SelfSufficiencyModule } from './self-sufficiency/self-sufficiency.module';
 import { StockLevelsModule } from './stock-levels/stock-levels.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
+import { FoodIndexModule } from './food-index/food-index.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { SuppliersModule } from './suppliers/suppliers.module';
     SelfSufficiencyModule,
     StockLevelsModule,
     SuppliersModule,
+    FoodIndexModule,
   ],
 })
 export class AppModule {}

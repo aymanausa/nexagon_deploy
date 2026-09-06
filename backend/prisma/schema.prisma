@@ -231,6 +231,34 @@ model RiskDomain {
   @@map("risk_domains")
 }
 
+// ─── FOOD-SECURITY INDEX (4-pillar composite; score 0-100, higher = healthier) ───
+model IndexIndicator {
+  id        String   @id @default(uuid())
+  pillar    String   // availability | access | utilization | stability
+  key       String   @unique // production, reserves, importCapacity, water, ...
+  label     String
+  weight    Float    // weight within its pillar (0-1)
+  score     Float?   // 0-100, null = pending (no source yet)
+  rawValue  String?  // human-readable underlying value/note
+  source    String   @default("pending")
+  status    String   @default("pending") // active | pending
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("index_indicators")
+}
+
+model IndexSnapshot {
+  id           String   @id @default(uuid())
+  overall      Float
+  availability Float?
+  access       Float?
+  utilization  Float?
+  stability    Float?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("index_snapshots")
+}
+
 // ─── INITIATIVE ───
 model Initiative {
   id                 String   @id @default(uuid())
