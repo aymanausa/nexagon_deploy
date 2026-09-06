@@ -1,0 +1,96 @@
+# Single stack that boots the whole EWS app: Postgres + Redis + NestJS backend + Next.js frontend.
+#   docker compose up
+#   Frontend -> http://localhost:3001
+#   Backend  -> http://localhost:3000/api   (Swagger docs: /docs)
+#
+# The backend/frontend run in dev mode straight from source (node:20-alpine); deps install on
+# first boot into named volumes, so subsequent boots are fast. No lockfiles/build artifacts needed.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ews-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=ews_user
+      - POSTGRES_PASSWORD=ews_pass
+      - POSTGRES_DB=ews_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ews_user -d ews_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ews-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: node:20-alpine
+    container_name: ews-backend
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - JWT_SECRET=ews-dev-secret-key-change-in-production
+      - DATABASE_URL=postgresql://ews_user:ews_pass@postgres:5432/ews_db
+      - REDIS_URL=redis://redis:6379
+      - CORS_ORIGINS=http://localhost:3001,http://localhost:5173
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+    command: >
+      sh -c "apk add --no-cache openssl libc6-compat &&
+             npm install &&
+             npx prisma generate &&
+             npx prisma db push --accept-data-loss &&
+             (npm run db:seed || echo 'seed skipped (already populated)') &&
+             npm run start:dev"
+
+  frontend:
+    image: node:20-alpine
+    container_name: ews-frontend
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      # Server-side proxy target for the /api rewrite (see next.config.js)
+      - BACKEND_URL=http://backend:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev"
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_node_modules:
+  frontend_node_modules:

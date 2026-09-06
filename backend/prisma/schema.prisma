@@ -1,0 +1,327 @@
+// EWS Prisma Schema v9.0
+// PostgreSQL + TimescaleDB extension
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───
+enum UserRole {
+  SUPER_ADMIN
+  INSTITUTION_ADMIN
+  DEPARTMENT_MANAGER
+  ANALYST
+  VIEWER
+  GUEST
+}
+
+enum AlertLevel {
+  GREEN
+  AMBER
+  RED
+  BLACK
+}
+
+enum AlertCategory {
+  PRICE
+  SUPPLY
+  LOGISTICS
+  CLIMATE
+  GEOPOLITICAL
+  QUALITY
+  SYSTEM
+}
+
+enum ScenarioCategory {
+  STRATEGIC
+  OPERATIONAL
+}
+
+enum ScenarioSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  EXTREME
+}
+
+enum SourceCategory {
+  INTERNATIONAL
+  GOVERNMENT
+  PRIVATE
+  NEWS
+  SHIPPING
+  SATELLITE
+  WEATHER
+  FINANCIAL
+}
+
+enum SourceStatus {
+  ACTIVE
+  WARNING
+  ERROR
+  DEGRADED
+}
+
+// ─── USER ───
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String   // bcrypt hashed
+  fullName      String   @map("full_name")
+  role          UserRole @default(VIEWER)
+  institution   String?
+  department    String?
+  isActive      Boolean  @default(true) @map("is_active")
+  mfaEnabled    Boolean  @default(false) @map("mfa_enabled")
+  mfaSecret     String?  @map("mfa_secret")
+  permissions   String[] @default([])
+  lastLogin     DateTime? @map("last_login")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+// ─── ALERT ───
+model Alert {
+  id                String         @id @default(uuid())
+  level             AlertLevel
+  category          AlertCategory
+  title             String
+  description       String
+  source            String
+  metric            String?
+  currentValue      Float?         @map("current_value")
+  thresholdValue    Float?         @map("threshold_value")
+  unit              String?
+  recommendedAction String?        @map("recommended_action") @db.Text
+  isRead            Boolean        @default(false) @map("is_read")
+  isAcknowledged    Boolean        @default(false) @map("is_acknowledged")
+  acknowledgedBy    String?        @map("acknowledged_by")
+  acknowledgedAt    DateTime?      @map("acknowledged_at")
+  metadata          Json           @default("{}")
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  @@index([level, category])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("alerts")
+}
+
+// ─── COMMODITY PRICE ───
+model CommodityPrice {
+  id              String   @id @default(uuid())
+  commodity       String
+  priceUsd        Float    @map("price_usd")
+  priceSar        Float    @map("price_sar")
+  changePercent   Float    @default(0) @map("change_percent")
+  forecast30d     Float?   @map("forecast_30d")
+  forecast90d     Float?   @map("forecast_90d")
+  confidenceScore Float    @default(0) @map("confidence_score")
+  source          String
+  metadata        Json     @default("{}")
+  recordedAt      DateTime @default(now()) @map("recorded_at")
+
+  @@index([commodity])
+  @@index([recordedAt])
+  @@map("commodity_prices")
+}
+
+// ─── SUPPLIER COUNTRY ───
+model SupplierCountry {
+  id                  String   @id @default(uuid())
+  name                String
+  countryCode         String   @unique @map("country_code")
+  iso3                String?  @map("iso3") // ISO-3166 alpha-3, for World Bank WGI risk join
+  m49                 Int?     @map("m49") // UN M49 numeric = ISO-3166 numeric, for map topojson join
+  flag                String?
+  continent           String?
+  commodities         String[]
+  breakdown           Json?    // per-commodity [{ commodity, usd, volumeMt }] for the per-commodity map filter
+  shareOfImports      Float    @default(0) @map("share_of_imports")
+  totalVolumeMt       Float    @default(0) @map("total_volume_mt")
+  riskScore           Float    @default(0) @map("risk_score")
+  politicalRisk       String   @default("low") @map("political_risk")
+  economicRisk        String   @default("low") @map("economic_risk")
+  climateRisk         String   @default("low") @map("climate_risk")
+  climateScore        Int?     @map("climate_score") // 0-100 growing-season weather stress (NASA POWER), higher = worse
+  diseaseEvents90d    Int?     @map("disease_events_90d") // confirmed animal-disease events, last 90d (FAO EMPRES-i)
+  diseaseTop          String[] @map("disease_top") // most frequent diseases behind that count
+  foodSafetyAlerts    Int?     @map("food_safety_alerts") // recent EU RASFF alerts for this origin country
+  healthExpPctGdp     Float?   @map("health_exp_pct_gdp") // current health expenditure % of GDP (World Bank)
+  healthScore         Int?     @map("health_score") // 0-100 composite country-health risk, higher = worse
+  exportPolicyStatus  String   @default("open") @map("export_policy_status")
+  reliabilityScore    Float    @default(0) @map("reliability_score")
+  transitTimeDays     Int      @default(0) @map("transit_time_days")
+  diplomaticRelations String   @default("good") @map("diplomatic_relations")
+  gccAgreement        Boolean  @default(false) @map("gcc_agreement")
+  lastUpdated         DateTime @default(now()) @map("last_updated")
+
+  @@index([countryCode])
+  @@index([riskScore])
+  @@map("supplier_countries")
+}
+
+// generic key/value app config (thresholds, prefs). ponytail: one table beats a model per setting.
+model AppConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_config")
+}
+
+// ─── STOCK LEVEL ───
+model StockLevel {
+  id                 String   @id @default(uuid())
+  commodity          String
+  currentStockMt     Float    @map("current_stock_mt")
+  targetStockMt      Float    @map("target_stock_mt")
+  daysOfSupply       Int      @map("days_of_supply")
+  capacityMt         Float    @map("capacity_mt")
+  utilizationPercent Float    @default(0) @map("utilization_percent")
+  silosCount         Int      @default(0) @map("silos_count")
+  status             String   @default("green")
+  recordedAt         DateTime @default(now()) @map("recorded_at")
+
+  @@index([commodity])
+  @@map("stock_levels")
+}
+
+// ─── SCENARIO ───
+model Scenario {
+  id                 String           @id @default(uuid())
+  name               String
+  category           ScenarioCategory
+  description        String           @db.Text
+  triggerEvent       String           @map("trigger_event") @db.Text
+  severity           ScenarioSeverity
+  impactedCommodities String[]        @map("impacted_commodities")
+  duration           String?
+  assumptions        String[]
+  cascadingEffects   Json            @default("[]") @map("cascading_effects")
+  projectedOutcomes  Json            @default("[]") @map("projected_outcomes")
+  mitigationOptions  Json            @default("[]") @map("mitigation_options")
+  isActive           String          @default("draft") @map("is_active")
+  createdAt          DateTime        @default(now()) @map("created_at")
+
+  @@index([category])
+  @@index([severity])
+  @@map("scenarios")
+}
+
+// ─── RISK DOMAIN ───
+model RiskDomain {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?  @db.Text
+  status        String   @default("green")
+  owner         String?
+  indicators    Json     @default("[]")
+  currentScore  Float    @default(0) @map("current_score")
+  targetScore   Float    @default(100) @map("target_score")
+  lastUpdated   DateTime @default(now()) @map("last_updated")
+
+  @@map("risk_domains")
+}
+
+// ─── INITIATIVE ───
+model Initiative {
+  id                 String   @id @default(uuid())
+  title              String
+  category           String
+  targetSector       String   @map("target_sector")
+  actionType         String   @map("action_type")
+  priority           String   @default("medium")
+  description        String   @db.Text
+  rationale          String?  @db.Text
+  estimatedImpact    String?  @map("estimated_impact")
+  timeframe          String?
+  relatedScenarios   String[] @map("related_scenarios")
+  estimatedCost      String?  @map("estimated_cost")
+  expectedRoi        String?  @map("expected_roi")
+  responsibleEntity  String?  @map("responsible_entity")
+  status             String   @default("proposed")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("initiatives")
+}
+
+// ─── COMMODITY CATALOG ───
+// Admin-managed catalog of commodities the platform can track. Drives both the
+// ingestion fetchers (what to pull) and the dashboard (what to show).
+model Commodity {
+  id              String   @id @default(uuid())
+  name            String   @unique              // display name, e.g. "Wheat"
+  category        String   @default("Other")    // Grains/Oilseeds/Livestock/…
+  faoItemCode     String?  @map("fao_item_code") // FAOSTAT PP item code (yearly)
+  wbColumn        String?  @map("wb_column")      // World Bank Pink Sheet column (monthly), null = no monthly
+  hsCode          String?  @map("hs_code")        // HS 4-digit code(s), comma-separated, for Comtrade trade flows
+  hasYearly       Boolean  @default(false) @map("has_yearly")
+  hasMonthly      Boolean  @default(false) @map("has_monthly")
+  showOnDashboard Boolean  @default(false) @map("show_on_dashboard")
+  isNew           Boolean  @default(false) @map("is_new") // surfaced by a catalog refresh
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([showOnDashboard])
+  @@map("commodities")
+}
+
+// ─── SELF-SUFFICIENCY (FAO Food Balance Sheets) ───
+// SSR = domestic production / domestic supply, per commodity, for KSA and the GCC average.
+model SelfSufficiency {
+  id        String   @id @default(uuid())
+  commodity String   @unique
+  category  String   @default("Other")
+  ksa       Float?   // KSA self-sufficiency ratio %
+  gcc       Float?   // GCC average %
+  target    Float?   // strategic/policy target % (config, not measured)
+  year      Int?     // data year
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("self_sufficiency")
+}
+
+// ─── DATA SOURCE ───
+model DataSource {
+  id              String         @id @default(uuid())
+  name            String
+  shortName       String         @map("short_name")
+  category        SourceCategory
+  status          SourceStatus   @default(ACTIVE)
+  url             String?
+  apiEndpoint     String?        @map("api_endpoint")
+  updateFrequency String         @default("daily") @map("update_frequency")
+  uptimePercent   Float          @default(100) @map("uptime_percent")
+  latencyMs       Int            @default(0) @map("latency_ms")
+  reliabilityScore Float         @default(100) @map("reliability_score")
+  recordsCount    Int            @default(0) @map("records_count")
+  errorRate       Float          @default(0) @map("error_rate")
+  lastUpdate      DateTime       @default(now()) @map("last_update")
+  config          Json           @default("{}")
+
+  @@map("data_sources")
+}
+
+// ─── NEWS ARTICLE (MongoDB mirror) ───
+model NewsArticle {
+  id          String   @id @default(uuid())
+  title       String
+  content     String   @db.Text
+  source      String
+  url         String?
+  sentiment   String?  // positive, negative, neutral
+  entities    String[] // extracted entities
+  publishedAt DateTime @map("published_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([source])
+  @@index([publishedAt])
+  @@map("news_articles")
+}
