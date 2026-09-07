@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useInsightsFocus } from '@/hooks/useInsightsFocus';
-import { selfSufficiencyApi, commoditiesApi } from '@/lib/api';
+import { selfSufficiencyApi, commoditiesApi, catalogApi } from '@/lib/api';
 import {
   AlertTriangle,
   TrendingUp,
@@ -24,6 +24,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LineChart,
+  Line,
   BarChart,
   Bar,
   RadarChart,
@@ -121,6 +123,18 @@ export default function DashboardPage() {
   const [selfSufficiency, setSelfSufficiency] = useState<any[]>([]);
   const [ssYear, setSsYear] = useState<number | null>(null);
   const [priceData, setPriceData] = useState<any[]>([]);
+  const [priceCommodities, setPriceCommodities] = useState<string[]>([]);
+  // null = show all. Otherwise the set of commodities to display.
+  const [visibleSeries, setVisibleSeries] = useState<Set<string> | null>(null);
+
+  const clickSeries = (name: string) =>
+    setVisibleSeries((prev) => {
+      if (prev === null) return new Set([name]); // first click → isolate to just this one
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name); // add / remove
+      return next.size === 0 ? null : next; // emptied → back to all
+    });
+  const isHidden = (name: string) => visibleSeries !== null && !visibleSeries.has(name);
 
   useEffect(() => {
     selfSufficiencyApi.list()
@@ -130,26 +144,45 @@ export default function DashboardPage() {
       })
       .catch(() => {});
 
-    // live monthly prices (World Bank) for the key grains, merged into one series
-    const keys = ['Wheat', 'Rice', 'Corn'];
-    Promise.all(
-      keys.map((c) => commoditiesApi.getPrices(c, 'WorldBank').then((r) => ({ c, rows: r.prices || [] })).catch(() => ({ c, rows: [] }))),
-    ).then((results) => {
-      const byPeriod: Record<string, any> = {};
-      for (const { c, rows } of results) {
-        for (const row of rows) {
-          const period = row.metadata?.period || String(row.recordedAt).slice(0, 7);
-          (byPeriod[period] ||= { period })[c.toLowerCase()] = row.priceUsd;
+    // live monthly prices (World Bank) for the commodities SELECTED in Settings
+    // (catalog showOnDashboard), rebased to an index (100 = first month) so different
+    // price levels share one scale. Only those with a monthly series draw a line.
+    catalogApi.list()
+      .then((cat) => (cat.commodities || []).filter((c: any) => c.showOnDashboard).map((c: any) => c.name))
+      .then((names: string[]) =>
+        Promise.all(names.map((c) => commoditiesApi.getPrices(c, 'WorldBank').then((r) => ({ c, rows: r.prices || [] })).catch(() => ({ c, rows: [] })))),
+      )
+      .then((results) => {
+        const withData = results.filter((r) => r.rows.length);
+        const commodities = withData.map((r) => r.c);
+        const raw: Record<string, Record<string, number>> = {}; // commodity -> period -> price
+        const periodSet = new Set<string>();
+        for (const { c, rows } of withData) {
+          raw[c] = {};
+          for (const row of rows) {
+            const p = row.metadata?.period || String(row.recordedAt).slice(0, 7);
+            raw[c][p] = row.priceUsd;
+            periodSet.add(p);
+          }
         }
-      }
-      const sorted = Object.values(byPeriod).sort((a: any, b: any) => a.period.localeCompare(b.period)).slice(-9);
-      sorted.forEach((d: any) => {
-        const [y, m] = d.period.split('-');
-        d.month = new Date(Number(y), Number(m) - 1).toLocaleString('en', { month: 'short' });
+        const periods = [...periodSet].sort().slice(-12);
+        const base: Record<string, number> = {};
+        for (const c of commodities) base[c] = raw[c][periods[0]] ?? Object.values(raw[c])[0];
+        const data = periods.map((p) => {
+          const [y, m] = p.split('-');
+          const o: any = { period: p, month: new Date(Number(y), Number(m) - 1).toLocaleString('en', { month: 'short' }) };
+          for (const c of commodities) {
+            const v = raw[c][p];
+            o[c] = v != null && base[c] ? Math.round((v / base[c]) * 1000) / 10 : null;
+          }
+          return o;
+        });
+        setPriceCommodities(commodities);
+        setPriceData(data);
       });
-      setPriceData(sorted);
-    });
   }, []);
+
+  const PRICE_COLORS = ['#c8a45c', '#0d8a5f', '#7c3aed', '#3b82f6', '#ef4444', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#f97316'];
 
   return (
     <DashboardLayout>
@@ -183,31 +216,34 @@ export default function DashboardPage() {
             <h3 className="font-semibold text-white flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-[#c8a45c]" /> Commodity Price Trends
             </h3>
-            <span className="text-xs text-[#94a3b8]">USD/MT · monthly (World Bank)</span>
+            <div className="flex items-center gap-3">
+              {visibleSeries !== null && (
+                <button onClick={() => setVisibleSeries(null)} className="text-xs text-[#c8a45c] hover:underline">Show all</button>
+              )}
+              <span className="text-xs text-[#94a3b8]">Indexed to 100 · click a legend item to focus</span>
+            </div>
           </div>
           <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={priceData}>
-              <defs>
-                <linearGradient id="wheat" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#c8a45c" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#c8a45c" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="rice" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0d8a5f" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#0d8a5f" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <LineChart data={priceData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#1a2d45" />
               <XAxis dataKey="month" stroke="#94a3b8" fontSize={12} />
-              <YAxis stroke="#94a3b8" fontSize={12} />
+              <YAxis stroke="#94a3b8" fontSize={12} domain={['auto', 'auto']} />
               <Tooltip
                 contentStyle={{ background: '#0f1d2f', border: '1px solid #1a2d45', borderRadius: '8px' }}
                 labelStyle={{ color: '#e2e8f0' }}
+                formatter={(v: number, name: string) => [v, name]}
               />
-              <Area type="monotone" dataKey="wheat" stroke="#c8a45c" fill="url(#wheat)" strokeWidth={2} name="Wheat" connectNulls />
-              <Area type="monotone" dataKey="rice" stroke="#0d8a5f" fill="url(#rice)" strokeWidth={2} name="Rice" connectNulls />
-              <Area type="monotone" dataKey="corn" stroke="#7c3aed" fillOpacity={0} strokeWidth={2} name="Corn" connectNulls />
-            </AreaChart>
+              <Legend
+                wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
+                onClick={(o: any) => clickSeries(o.dataKey || o.value)}
+                formatter={(value: string) => (
+                  <span style={{ color: isHidden(value) ? '#475569' : '#cbd5e1', textDecoration: isHidden(value) ? 'line-through' : 'none' }}>{value}</span>
+                )}
+              />
+              {priceCommodities.map((c, i) => (
+                <Line key={c} type="monotone" dataKey={c} name={c} stroke={PRICE_COLORS[i % PRICE_COLORS.length]} strokeWidth={2} dot={false} connectNulls hide={isHidden(c)} />
+              ))}
+            </LineChart>
           </ResponsiveContainer>
         </div>
 
