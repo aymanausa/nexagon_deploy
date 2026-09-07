@@ -21,6 +21,7 @@ import { StockLevelsModule } from './stock-levels/stock-levels.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { FoodIndexModule } from './food-index/food-index.module';
 import { NewsModule } from './news/news.module';
+import { DemandModule } from './demand/demand.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { NewsModule } from './news/news.module';
     SuppliersModule,
     FoodIndexModule,
     NewsModule,
+    DemandModule,
   ],
 })
 export class AppModule {}

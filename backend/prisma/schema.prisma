@@ -288,6 +288,20 @@ model NewsBrief {
   @@map("news_briefs")
 }
 
+// ─── DEMAND BASELINE (FAO FBS consumption/production + Comtrade imports per commodity) ───
+// The seasonal 12-month demand projection is computed on read from these annual baselines.
+model DemandBaseline {
+  id                  String   @id @default(uuid())
+  commodity           String   @unique
+  annualConsumptionMt Float    @default(0) @map("annual_consumption_mt") // FAO FBS domestic supply
+  annualProductionMt  Float    @default(0) @map("annual_production_mt")  // FAO FBS production
+  annualImportsMt     Float    @default(0) @map("annual_imports_mt")     // UN Comtrade
+  year                Int?
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("demand_baselines")
+}
+
 // ─── INITIATIVE ───
 model Initiative {
   id                 String   @id @default(uuid())

@@ -1,10 +1,10 @@
 'use client';
 
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Settings, Bell, Shield, Globe, Moon, Sun, Save, LineChart, RefreshCw, Search, Check, Warehouse } from 'lucide-react';
+import { Settings, Bell, Shield, Globe, Moon, Sun, Save, LineChart, RefreshCw, Search, Check, Warehouse, CalendarClock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
-import { catalogApi, stockLevelsApi } from '@/lib/api';
+import { catalogApi, stockLevelsApi, demandApi } from '@/lib/api';
 
 interface CatalogRow {
   id: string;
@@ -52,6 +52,31 @@ export default function SettingsPage() {
       setThNote('Save failed (admin only).');
     } finally {
       setSavingTh(false);
+    }
+  };
+
+  const [ramadanUpliftPct, setRamadanUpliftPct] = useState(25);
+  const [hajjUpliftPct, setHajjUpliftPct] = useState(12);
+  const [populationGrowthPct, setPopulationGrowthPct] = useState(1.6);
+  const [savingDemand, setSavingDemand] = useState(false);
+  const [demandNote, setDemandNote] = useState('');
+
+  useEffect(() => {
+    demandApi.getAssumptions().then((a) => {
+      setRamadanUpliftPct(a.ramadanUpliftPct); setHajjUpliftPct(a.hajjUpliftPct); setPopulationGrowthPct(a.populationGrowthPct);
+    }).catch(() => {});
+  }, []);
+
+  const saveDemand = async () => {
+    setDemandNote('');
+    setSavingDemand(true);
+    try {
+      await demandApi.setAssumptions({ ramadanUpliftPct, hajjUpliftPct, populationGrowthPct });
+      setDemandNote('Assumptions saved — demand projection updated.');
+    } catch {
+      setDemandNote('Save failed (admin only).');
+    } finally {
+      setSavingDemand(false);
     }
   };
 
@@ -183,6 +208,36 @@ export default function SettingsPage() {
             <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Low &lt; {watchDays}d</span>
           </div>
           {thNote && <p className="text-xs text-emerald-400 mt-2">{thNote}</p>}
+        </div>
+
+        {/* Demand Assumptions */}
+        <div className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-6 mb-4">
+          <h3 className="font-semibold text-white flex items-center gap-2"><CalendarClock className="w-4 h-4 text-[#c8a45c]" /> Demand Seasonality Assumptions</h3>
+          <p className="text-xs text-[#94a3b8] mt-0.5 mb-4">
+            Coefficients for the demand forecast. Ramadan/Hajj timing is computed from the Islamic calendar; these magnitudes are <span className="text-[#c8a45c]">estimates pending GASTAT/SAGO review</span>. Per-commodity Ramadan overrides (e.g. rice, sugar, poultry) live in the model config.
+          </p>
+          <div className="flex flex-wrap items-end gap-4">
+            <div>
+              <label className="block text-xs text-[#94a3b8] mb-1">Ramadan uplift (%)</label>
+              <input type="number" min={0} max={200} value={ramadanUpliftPct} onChange={(e) => setRamadanUpliftPct(Number(e.target.value))}
+                className="w-32 bg-[#080e1a] border border-[#1a2d45] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#c8a45c]" />
+            </div>
+            <div>
+              <label className="block text-xs text-[#94a3b8] mb-1">Hajj uplift (%)</label>
+              <input type="number" min={0} max={200} value={hajjUpliftPct} onChange={(e) => setHajjUpliftPct(Number(e.target.value))}
+                className="w-32 bg-[#080e1a] border border-[#1a2d45] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#c8a45c]" />
+            </div>
+            <div>
+              <label className="block text-xs text-[#94a3b8] mb-1">Population growth (%/yr)</label>
+              <input type="number" min={0} max={20} step={0.1} value={populationGrowthPct} onChange={(e) => setPopulationGrowthPct(Number(e.target.value))}
+                className="w-36 bg-[#080e1a] border border-[#1a2d45] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#c8a45c]" />
+            </div>
+            <button onClick={saveDemand} disabled={savingDemand}
+              className="flex items-center gap-2 px-4 py-2 bg-[#c8a45c] text-[#0B1628] rounded-lg text-sm font-semibold hover:bg-[#d4b76a] transition-colors disabled:opacity-50">
+              <Save className="w-4 h-4" /> {savingDemand ? 'Saving…' : 'Save assumptions'}
+            </button>
+          </div>
+          {demandNote && <p className="text-xs text-emerald-400 mt-2">{demandNote}</p>}
         </div>
 
         {/* Notifications */}

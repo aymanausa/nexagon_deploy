@@ -91,6 +91,13 @@ export const newsApi = {
   get: () => apiFetch('/v1/news'),
 };
 
+export const demandApi = {
+  get: () => apiFetch('/v1/demand'),
+  getAssumptions: () => apiFetch('/v1/demand/assumptions'),
+  setAssumptions: (a: { ramadanUpliftPct: number; hajjUpliftPct: number; populationGrowthPct: number }) =>
+    apiFetch('/v1/demand/assumptions', { method: 'PUT', body: JSON.stringify(a) }),
+};
+
 export const catalogApi = {
   list: () => apiFetch('/v1/commodities/catalog'),
   refresh: () => apiFetch('/v1/commodities/catalog/refresh', { method: 'POST' }),
