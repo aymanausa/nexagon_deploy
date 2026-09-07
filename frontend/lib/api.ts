@@ -98,6 +98,10 @@ export const demandApi = {
     apiFetch('/v1/demand/assumptions', { method: 'PUT', body: JSON.stringify(a) }),
 };
 
+export const procurementApi = {
+  get: () => apiFetch('/v1/procurement'),
+};
+
 export const catalogApi = {
   list: () => apiFetch('/v1/commodities/catalog'),
   refresh: () => apiFetch('/v1/commodities/catalog/refresh', { method: 'POST' }),

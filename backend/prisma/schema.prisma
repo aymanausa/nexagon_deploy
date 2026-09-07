@@ -288,6 +288,31 @@ model NewsBrief {
   @@map("news_briefs")
 }
 
+// ─── PROCUREMENT OPTIMIZER (synthesises demand + price + reserves + suppliers + news) ───
+model ProcurementRecommendation {
+  id             String   @id @default(uuid())
+  commodity      String   @unique
+  action         String   // buy | hold | defer
+  urgency        Int      @default(0) // 0-100
+  quantitySignal String   @default("low") // low | medium | high
+  quantityMt     Int      @default(0)     // estimated MT to secure over the horizon
+  timingWindow   String?  // e.g. "next 8 weeks" or "defer ~Q2 (await trough)"
+  priceTrend     String?  // rising | falling | flat (+ confidence)
+  origins        Json?    // ranked recommended origins [{country, share, riskScore, note}]
+  reasoning      String[] // explicit factor strings (auditable)
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("procurement_recommendations")
+}
+
+model ProcurementBrief {
+  id        String   @id @default(uuid())
+  content   String   @db.Text // Claude portfolio brief (markdown)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("procurement_briefs")
+}
+
 // ─── DEMAND BASELINE (FAO FBS consumption/production + Comtrade imports per commodity) ───
 // The seasonal 12-month demand projection is computed on read from these annual baselines.
 model DemandBaseline {

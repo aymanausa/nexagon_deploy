@@ -22,6 +22,7 @@ export const LIVE_DATASETS: LiveDataset[] = [
     ],
     consumers: [
       { module: 'Commodity Prices', path: '/commodities', note: 'Cards + monthly/yearly trend' },
+      { module: 'Procurement', path: '/procurement', note: 'Price forecast → buy/hold/defer timing' },
       { module: 'Dashboard Overview', path: '/dashboard', note: 'KPIs & latest prices' },
       { module: 'AI Insights', path: '/commodities', note: 'Right-panel insights' },
       { module: 'Settings', path: '/settings', note: 'Dashboard Commodities catalog' },
@@ -54,6 +55,7 @@ export const LIVE_DATASETS: LiveDataset[] = [
       { module: 'Stock Levels', path: '/stock-levels', note: 'Reserve levels & days of supply' },
       { module: 'AI Insights', path: '/stock-levels', note: 'Reserve insights' },
       { module: 'Risk Heatmap', path: '/risk-heatmap', note: 'Availability › Reserves sub-indicator' },
+      { module: 'Procurement', path: '/procurement', note: 'Reserve buffer → buy urgency' },
     ],
   },
   {
@@ -73,6 +75,7 @@ export const LIVE_DATASETS: LiveDataset[] = [
       { module: 'Suppliers', path: '/suppliers', note: 'Map + top supplier table + risk, climate & country-health overlays' },
       { module: 'Risk Heatmap', path: '/risk-heatmap', note: 'GeoRisk, Climate, SupplyChain, FoodSafety, ImportCapacity sub-indicators' },
       { module: 'AI Insights', path: '/suppliers', note: 'Supplier insights' },
+      { module: 'Procurement', path: '/procurement', note: 'Risk-adjusted origin ranking' },
     ],
   },
   {

@@ -115,6 +115,17 @@ export class InsightsService {
         ),
       };
     }
+    // procurement optimizer — whole page or one clicked commodity
+    if (context === 'procurement') {
+      const recs = await this.prisma.procurementRecommendation.findMany({ orderBy: { urgency: 'desc' } });
+      if (recs.length === 0) return { title: 'Procurement', facts: [] };
+      const fmt = (r: any) => `${r.commodity}: ${r.action.toUpperCase()} (urgency ${r.urgency}, ${r.quantitySignal} qty, ${r.timingWindow}) — ${(r.reasoning || []).join(' ')}`;
+      if (focus) {
+        const r = recs.find((x) => x.commodity === focus);
+        if (r) return { title: `${focus} — procurement`, facts: [fmt(r), `Recommended origins: ${((r.origins as any[]) || []).map((o) => `${o.country} (risk ${o.riskScore})`).join(', ') || '—'}`] };
+      }
+      return { title: 'Procurement Recommendations', facts: recs.map(fmt) };
+    }
     // food-security composite index — whole page or one clicked pillar
     if (context === 'food-index' || context === 'risk-heatmap') {
       const indicators = await this.prisma.indexIndicator.findMany();

@@ -13,6 +13,7 @@ const pageTitles: Record<string, string> = {
   '/suppliers': 'Supplier Map',
   '/stock-levels': 'Stock Levels',
   '/demand': 'Demand Forecast',
+  '/procurement': 'Procurement Optimizer',
   '/scenarios': 'Scenario Simulator',
   '/ai-assistant': 'AI Assistant',
   '/reports': 'Reports',

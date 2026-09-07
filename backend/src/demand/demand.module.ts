@@ -5,5 +5,6 @@ import { DemandController } from './demand.controller';
 @Module({
   providers: [DemandService],
   controllers: [DemandController],
+  exports: [DemandService],
 })
 export class DemandModule {}
