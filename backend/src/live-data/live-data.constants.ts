@@ -6,7 +6,7 @@ export interface LiveDataset {
   name: string;
   category: string;
   description: string;
-  providers: { provider: string; name: string; sourceTag: string; granularity: string; note?: string; countModel?: 'commodityPrice' | 'selfSufficiency' | 'stockLevel' | 'supplier' | 'supplierRisk' | 'supplierClimate' | 'supplierDisease' | 'supplierFoodSafety' | 'supplierHealthExp' }[];
+  providers: { provider: string; name: string; sourceTag: string; granularity: string; note?: string; countModel?: 'commodityPrice' | 'selfSufficiency' | 'stockLevel' | 'supplier' | 'supplierRisk' | 'supplierClimate' | 'supplierDisease' | 'supplierFoodSafety' | 'supplierHealthExp' | 'newsSignal' }[];
   consumers: { module: string; path: string; note: string }[];
 }
 
@@ -73,6 +73,19 @@ export const LIVE_DATASETS: LiveDataset[] = [
       { module: 'Suppliers', path: '/suppliers', note: 'Map + top supplier table + risk, climate & country-health overlays' },
       { module: 'Risk Heatmap', path: '/risk-heatmap', note: 'GeoRisk, Climate, SupplyChain, FoodSafety, ImportCapacity sub-indicators' },
       { module: 'AI Insights', path: '/suppliers', note: 'Supplier insights' },
+    ],
+  },
+  {
+    key: 'news-signals',
+    name: 'News Signals',
+    category: 'Intelligence',
+    description: 'World food-security news classified by Claude into KSA-relevant signals.',
+    providers: [
+      { provider: 'gdelt', name: 'GDELT + Claude', sourceTag: '', granularity: 'Continuous · classified headlines', note: 'Export bans, drought, logistics, disease, prices', countModel: 'newsSignal' },
+    ],
+    consumers: [
+      { module: 'Live News', path: '/news', note: 'Signal feed + daily AI brief' },
+      { module: 'AI Insights', path: '/news', note: 'Leading-indicator signals' },
     ],
   },
 ];

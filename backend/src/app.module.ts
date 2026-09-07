@@ -20,6 +20,7 @@ import { SelfSufficiencyModule } from './self-sufficiency/self-sufficiency.modul
 import { StockLevelsModule } from './stock-levels/stock-levels.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { FoodIndexModule } from './food-index/food-index.module';
+import { NewsModule } from './news/news.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { FoodIndexModule } from './food-index/food-index.module';
     StockLevelsModule,
     SuppliersModule,
     FoodIndexModule,
+    NewsModule,
   ],
 })
 export class AppModule {}

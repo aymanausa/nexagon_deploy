@@ -259,6 +259,35 @@ model IndexSnapshot {
   @@map("index_snapshots")
 }
 
+// ─── NEWS SIGNALS (GDELT world news → Claude-classified food-security signals) ───
+model NewsSignal {
+  id            String   @id @default(uuid())
+  title         String   @db.Text
+  url           String   @unique
+  domain        String?
+  sourceCountry String?  @map("source_country")
+  publishedAt   DateTime @map("published_at")
+  commodity     String?  // classified: tracked commodity affected (nullable)
+  country       String?  // classified: country the event is about
+  eventType     String   @default("other") @map("event_type") // export-ban|drought|conflict|logistics|policy|disease|price|other
+  severity      String   @default("low")   // low|medium|high
+  relevance     Int      @default(0)       // 0-100 relevance to KSA food security
+  summary       String?  @db.Text          // Claude one-line
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([publishedAt])
+  @@map("news_signals")
+}
+
+model NewsBrief {
+  id          String   @id @default(uuid())
+  content     String   @db.Text // Claude-generated daily brief (markdown)
+  signalCount Int      @default(0) @map("signal_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("news_briefs")
+}
+
 // ─── INITIATIVE ───
 model Initiative {
   id                 String   @id @default(uuid())

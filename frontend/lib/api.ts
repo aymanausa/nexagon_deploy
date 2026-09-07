@@ -87,6 +87,10 @@ export const foodIndexApi = {
   recompute: () => apiFetch('/v1/food-index/recompute', { method: 'POST' }),
 };
 
+export const newsApi = {
+  get: () => apiFetch('/v1/news'),
+};
+
 export const catalogApi = {
   list: () => apiFetch('/v1/commodities/catalog'),
   refresh: () => apiFetch('/v1/commodities/catalog/refresh', { method: 'POST' }),

@@ -76,6 +76,18 @@ export class LiveDataService {
                 commodities: scored,
               };
             }
+            if (p.countModel === 'newsSignal') {
+              const rows = await this.prisma.newsSignal.findMany({ select: { publishedAt: true } });
+              return {
+                name: p.name, granularity: p.granularity, note: p.note,
+                status: rows.length ? 'ACTIVE' : 'DEGRADED',
+                updateFrequency: 'Continuous',
+                lastUpdate: rows.reduce<Date | null>((m, r) => (!m || r.publishedAt > m ? r.publishedAt : m), null),
+                endpoint: 'https://api.gdeltproject.org',
+                records: rows.length,
+                commodities: rows.length,
+              };
+            }
             if (p.countModel === 'supplierDisease' || p.countModel === 'supplierFoodSafety' || p.countModel === 'supplierHealthExp') {
               const field =
                 p.countModel === 'supplierDisease' ? 'diseaseEvents90d'

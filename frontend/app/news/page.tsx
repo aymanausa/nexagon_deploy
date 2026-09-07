@@ -1,51 +1,116 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { Newspaper, ExternalLink, Clock, Tag } from 'lucide-react';
+import { Newspaper, ExternalLink, Clock, Tag, Sparkles, Filter } from 'lucide-react';
+import { newsApi } from '@/lib/api';
 
-const newsItems = [
-  { id: 1, title: 'Wheat prices surge to 18-month high on Ukraine supply concerns', source: 'Reuters', category: 'Price', time: '15 min ago', impact: 'High', summary: 'Chicago wheat futures jumped 3.2% as renewed concerns over Ukrainian grain exports emerged following Black Sea tensions.' },
-  { id: 2, title: 'India confirms rice export ban extension through December 2026', source: 'Bloomberg', category: 'Policy', time: '45 min ago', impact: 'High', summary: 'Indian government announces continuation of rice export restrictions, affecting global supply chains.' },
-  { id: 3, title: 'Brazil soybean harvest forecast raised by CONAB', source: 'Agriculture.com', category: 'Supply', time: '1 hour ago', impact: 'Medium', summary: 'Brazilian crop agency CONAB raised its 2026 soybean production estimate to 156.2 million tonnes.' },
-  { id: 4, title: 'Red Sea shipping delays extend to 15 days average', source: 'Lloyd\'s List', category: 'Logistics', time: '2 hours ago', impact: 'High', summary: 'Maritime intelligence shows average delays through Red Sea now at 15 days, up from 12 last week.' },
-  { id: 5, title: 'SFDA announces new import requirements for poultry', source: 'SFDA', category: 'Regulation', time: '3 hours ago', impact: 'Medium', summary: 'New cold chain documentation requirements for poultry imports effective August 1, 2026.' },
-  { id: 6, title: 'Australia declares El Nino watch as ocean temperatures rise', source: 'BOM', category: 'Weather', time: '4 hours ago', impact: 'Medium', summary: 'Australian Bureau of Meteorology issues El Nino watch, potential impact on wheat production.' },
-  { id: 7, title: 'SALIC signs 3-year barley supply agreement with Ukraine', source: 'SALIC', category: 'Trade', time: '5 hours ago', impact: 'Medium', summary: 'Strategic grain reserve operator secures long-term barley supply deal with Ukrainian exporters.' },
-  { id: 8, title: 'EU dairy production down 4.3% year-on-year', source: 'Eurostat', category: 'Supply', time: '6 hours ago', impact: 'Low', summary: 'European dairy output continues decline due to farmer protests and environmental regulations.' },
-];
+interface Signal {
+  id: string;
+  title: string;
+  url: string;
+  domain: string | null;
+  sourceCountry: string | null;
+  publishedAt: string;
+  commodity: string | null;
+  country: string | null;
+  eventType: string;
+  severity: string;
+  relevance: number;
+  summary: string | null;
+}
+interface Brief { content: string; signalCount: number; createdAt: string }
 
-const impactColors: Record<string, string> = {
-  High: 'text-red-400 bg-red-500/10',
-  Medium: 'text-amber-400 bg-amber-500/10',
-  Low: 'text-blue-400 bg-blue-500/10',
+const severityColors: Record<string, string> = {
+  high: 'text-red-400 bg-red-500/10 border-red-500/30',
+  medium: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+  low: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+};
+const eventLabels: Record<string, string> = {
+  'export-ban': 'Export Ban', drought: 'Climate', conflict: 'Conflict', logistics: 'Logistics',
+  policy: 'Policy', disease: 'Disease', price: 'Price', other: 'General',
 };
 
+function timeAgo(iso: string): string {
+  const mins = Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
 export default function NewsPage() {
+  const [signals, setSignals] = useState<Signal[]>([]);
+  const [brief, setBrief] = useState<Brief | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<string>('all');
+
+  useEffect(() => {
+    newsApi.get().then((r) => { setSignals(r.signals || []); setBrief(r.brief || null); }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const eventTypes = ['all', ...Array.from(new Set(signals.map((s) => s.eventType)))];
+  const shown = filter === 'all' ? signals : signals.filter((s) => s.eventType === filter);
+
   return (
     <DashboardLayout>
+      <p className="text-sm text-[#94a3b8] mb-4 flex items-center gap-2">
+        <Newspaper className="w-4 h-4 text-[#c8a45c]" /> World food-security news — live from GDELT, classified by Claude for KSA import relevance.
+      </p>
+
+      {loading && <p className="text-[#94a3b8] text-sm">Loading signals…</p>}
+
+      {/* AI Signal Brief */}
+      {brief && (
+        <div className="bg-gradient-to-br from-[#c8a45c]/10 to-[#0f1d2f] border border-[#c8a45c]/30 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-white flex items-center gap-2"><Sparkles className="w-4 h-4 text-[#c8a45c]" /> Daily Food-Security Signal Brief</h3>
+            <span className="text-xs text-[#94a3b8]">{brief.signalCount} signals · {timeAgo(brief.createdAt)}</span>
+          </div>
+          <div className="text-sm text-[#cbd5e1] whitespace-pre-wrap leading-relaxed">{brief.content}</div>
+          <p className="text-[10px] text-[#64748b] mt-3">Generated by Claude from classified GDELT signals — verify before acting.</p>
+        </div>
+      )}
+
+      {/* Event-type filter */}
+      {signals.length > 0 && (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <Filter className="w-3.5 h-3.5 text-[#94a3b8]" />
+          {eventTypes.map((t) => (
+            <button key={t} onClick={() => setFilter(t)}
+              className={`px-2.5 py-1 rounded text-xs ${filter === t ? 'bg-[#c8a45c] text-[#0B1628] font-semibold' : 'bg-[#080e1a] border border-[#1a2d45] text-[#94a3b8]'}`}>
+              {t === 'all' ? 'All' : eventLabels[t] || t}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!loading && signals.length === 0 && <p className="text-[#94a3b8] text-sm">No signals yet — the feed refreshes on the server.</p>}
+
+      {/* Signal feed */}
       <div className="space-y-4">
-        {newsItems.map((news) => (
-          <div key={news.id} className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-5 hover:border-[#c8a45c]/30 transition-all">
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex items-center gap-2">
+        {shown.map((s) => (
+          <div key={s.id} className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-5 hover:border-[#c8a45c]/30 transition-all">
+            <div className="flex items-start justify-between mb-2 gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="px-2 py-1 rounded text-xs bg-[#080e1a] text-[#94a3b8] flex items-center gap-1">
-                  <Tag className="w-3 h-3" /> {news.category}
+                  <Tag className="w-3 h-3" /> {eventLabels[s.eventType] || s.eventType}
                 </span>
-                <span className={`px-2 py-1 rounded text-xs font-medium ${impactColors[news.impact]}`}>
-                  {news.impact} Impact
+                <span className={`px-2 py-1 rounded text-xs font-medium border ${severityColors[s.severity] || severityColors.low}`}>
+                  {s.severity} severity
                 </span>
+                {s.commodity && <span className="px-2 py-1 rounded text-xs bg-[#c8a45c]/10 text-[#c8a45c]">{s.commodity}</span>}
+                {s.country && <span className="px-2 py-1 rounded text-xs bg-[#1a2d45] text-[#94a3b8]">{s.country}</span>}
               </div>
-              <span className="text-xs text-[#94a3b8] flex items-center gap-1">
-                <Clock className="w-3 h-3" /> {news.time}
-              </span>
+              <span className="text-xs text-[#94a3b8] flex items-center gap-1 shrink-0"><Clock className="w-3 h-3" /> {timeAgo(s.publishedAt)}</span>
             </div>
-            <h3 className="text-lg font-semibold text-white mb-2">{news.title}</h3>
-            <p className="text-sm text-[#94a3b8] mb-3">{news.summary}</p>
+            <h3 className="text-base font-semibold text-white mb-1.5">{s.title}</h3>
+            {s.summary && <p className="text-sm text-[#94a3b8] mb-3">{s.summary}</p>}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-[#94a3b8]">Source: {news.source}</span>
-              <button className="flex items-center gap-1 text-xs text-[#c8a45c] hover:underline">
-                <ExternalLink className="w-3 h-3" /> Read Full Article
-              </button>
+              <span className="text-xs text-[#64748b]">Source: {s.domain || 'news'} · KSA relevance {s.relevance}/100</span>
+              <a href={s.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#c8a45c] hover:underline">
+                <ExternalLink className="w-3 h-3" /> Read source
+              </a>
             </div>
           </div>
         ))}
