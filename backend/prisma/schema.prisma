@@ -344,6 +344,11 @@ model Initiative {
   expectedRoi        String?  @map("expected_roi")
   responsibleEntity  String?  @map("responsible_entity")
   status             String   @default("proposed")
+  sourceKey          String?  @unique @map("source_key") // stable key for auto-suggested dedupe; null = manual
+  source             String?  // where an auto-suggestion came from (e.g. "procurement:Wheat")
+  linkedCommodity    String?  @map("linked_commodity")
+  linkedPillar       String?  @map("linked_pillar")
+  updatedAt          DateTime @updatedAt @map("updated_at")
   createdAt          DateTime @default(now()) @map("created_at")
 
   @@map("initiatives")

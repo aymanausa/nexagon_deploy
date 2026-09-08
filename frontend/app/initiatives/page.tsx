@@ -1,91 +1,106 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { ClipboardList, Target, TrendingUp, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { ClipboardList, Sparkles, RefreshCw, Cog, ChevronRight, Check, X } from 'lucide-react';
+import { initiativesApi } from '@/lib/api';
 
-const initiatives = [
-  { id: 1, name: 'Strategic Reserve Expansion', owner: 'SALIC', status: 'In Progress', progress: 68, category: 'Resilience', deadline: 'Q4 2026', impact: 'High' },
-  { id: 2, name: 'Local Wheat Production Boost', owner: 'MEWA', status: 'In Progress', progress: 45, category: 'Local Production', deadline: 'Q2 2027', impact: 'High' },
-  { id: 3, name: 'Supplier Diversification', owner: 'SALIC', status: 'In Progress', progress: 72, category: 'Trade', deadline: 'Q1 2027', impact: 'High' },
-  { id: 4, name: 'Cold Chain Modernization', owner: 'SFDA', status: 'Planning', progress: 23, category: 'Infrastructure', deadline: 'Q4 2027', impact: 'Medium' },
-  { id: 5, name: 'AI Prediction Enhancement', owner: 'SALIC', status: 'In Progress', progress: 55, category: 'Technology', deadline: 'Q3 2026', impact: 'High' },
-  { id: 6, name: 'Youth Agriculture Training', owner: 'MEWA', status: 'Active', progress: 82, category: 'Human Capital', deadline: 'Q2 2026', impact: 'Medium' },
-  { id: 7, name: 'Food Loss Reduction Program', owner: 'SFDA', status: 'In Progress', progress: 38, category: 'Efficiency', deadline: 'Q1 2027', impact: 'Medium' },
-  { id: 8, name: 'Bilateral Trade Agreements', owner: 'MOFA', status: 'In Progress', progress: 60, category: 'Trade', deadline: 'Q4 2026', impact: 'High' },
-  { id: 9, name: 'Water Efficiency in Agriculture', owner: 'MEWA', status: 'Planning', progress: 15, category: 'Sustainability', deadline: 'Q2 2028', impact: 'High' },
-  { id: 10, name: 'Emergency Response Protocol', owner: 'NESA', status: 'In Progress', progress: 90, category: 'Resilience', deadline: 'Q3 2026', impact: 'High' },
-];
+interface Initiative {
+  id: string; title: string; category: string; priority: string; description: string; rationale: string | null;
+  responsibleEntity: string | null; status: string; source: string | null; sourceKey: string | null;
+  linkedCommodity: string | null; linkedPillar: string | null;
+}
 
-const statusConfig: Record<string, { color: string; icon: any }> = {
-  'Active': { color: 'text-emerald-400 bg-emerald-500/10', icon: CheckCircle2 },
-  'In Progress': { color: 'text-blue-400 bg-blue-500/10', icon: TrendingUp },
-  'Planning': { color: 'text-amber-400 bg-amber-500/10', icon: Clock },
-  'Delayed': { color: 'text-red-400 bg-red-500/10', icon: AlertCircle },
+const STATUSES = ['suggested', 'approved', 'in_progress', 'completed', 'dismissed'];
+const statusStyle: Record<string, string> = {
+  suggested: 'text-[#c8a45c] bg-[#c8a45c]/10 border-[#c8a45c]/30',
+  approved: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+  in_progress: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+  completed: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+  dismissed: 'text-[#64748b] bg-[#080e1a] border-[#1a2d45]',
 };
+const prioStyle: Record<string, string> = {
+  critical: 'text-red-400', high: 'text-orange-400', medium: 'text-amber-400', low: 'text-[#94a3b8]',
+};
+const nextStatus: Record<string, string> = { suggested: 'approved', approved: 'in_progress', in_progress: 'completed' };
 
 export default function InitiativesPage() {
+  const [items, setItems] = useState<Initiative[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState('all');
+
+  const load = () => initiativesApi.list().then((r) => setItems(r.initiatives || [])).catch(() => {});
+  useEffect(() => { load().finally(() => setLoading(false)); }, []);
+
+  const generate = async () => { setBusy(true); try { await initiativesApi.generate(); await load(); } finally { setBusy(false); } };
+  const advance = async (i: Initiative, status: string) => { await initiativesApi.update(i.id, { status }); await load(); };
+
+  const count = (s: string) => items.filter((i) => i.status === s).length;
+  const shown = filter === 'all' ? items : items.filter((i) => i.status === filter);
+
   return (
     <DashboardLayout>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-4">
-          <ClipboardList className="w-5 h-5 text-[#c8a45c] mb-2" />
-          <p className="text-2xl font-bold text-white">{initiatives.length}</p>
-          <p className="text-xs text-[#94a3b8]">Total Initiatives</p>
-        </div>
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-          <TrendingUp className="w-5 h-5 text-blue-400 mb-2" />
-          <p className="text-2xl font-bold text-white">6</p>
-          <p className="text-xs text-[#94a3b8]">In Progress</p>
-        </div>
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 mb-2" />
-          <p className="text-2xl font-bold text-white">1</p>
-          <p className="text-xs text-[#94a3b8]">Active/Complete</p>
-        </div>
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-          <Target className="w-5 h-5 text-amber-400 mb-2" />
-          <p className="text-2xl font-bold text-white">2</p>
-          <p className="text-xs text-[#94a3b8]">In Planning</p>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <p className="text-sm text-[#94a3b8] flex items-center gap-2">
+          <ClipboardList className="w-4 h-4 text-[#c8a45c]" /> Strategic initiatives — auto-suggested from live findings (procurement, suppliers, reserves, data gaps) + tracked to completion.
+        </p>
+        <button onClick={generate} disabled={busy}
+          className="flex items-center gap-2 px-3 py-2 bg-[#c8a45c] text-[#0B1628] rounded-lg text-sm font-semibold hover:bg-[#d4b76a] transition-colors disabled:opacity-50">
+          <RefreshCw className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> {busy ? 'Generating…' : 'Generate suggestions'}
+        </button>
       </div>
 
-      <div className="space-y-4">
-        {initiatives.map((item) => {
-          const config = statusConfig[item.status];
-          const Icon = config.icon;
-          return (
-            <div key={item.id} className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${config.color}`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white">{item.name}</p>
-                    <p className="text-xs text-[#94a3b8]">Owner: {item.owner} • Category: {item.category}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${config.color}`}>{item.status}</span>
-                  <span className="text-xs text-[#94a3b8]">Due: {item.deadline}</span>
+      {/* Status summary / filter */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        {STATUSES.map((s) => (
+          <button key={s} onClick={() => setFilter(filter === s ? 'all' : s)}
+            className={`rounded-xl p-3 border text-left transition-colors ${filter === s ? statusStyle[s] : 'bg-[#0f1d2f] border-[#1a2d45]'}`}>
+            <p className="text-2xl font-bold text-white">{count(s)}</p>
+            <p className="text-xs text-[#94a3b8] capitalize">{s.replace('_', ' ')}</p>
+          </button>
+        ))}
+      </div>
+
+      {loading && <p className="text-[#94a3b8] text-sm">Loading…</p>}
+      {!loading && !shown.length && <p className="text-[#94a3b8] text-sm">No initiatives{filter !== 'all' ? ` in "${filter}"` : ''} — try Generate suggestions.</p>}
+
+      <div className="space-y-3">
+        {shown.map((i) => (
+          <div key={i.id} className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl p-5">
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <div className="flex items-start gap-3">
+                {i.sourceKey ? <Cog className="w-4 h-4 text-[#c8a45c] mt-1 shrink-0" title="Auto-suggested" /> : <Sparkles className="w-4 h-4 text-blue-400 mt-1 shrink-0" title="Manual" />}
+                <div>
+                  <p className="font-semibold text-white">{i.title}</p>
+                  <p className="text-xs text-[#94a3b8] mt-0.5">
+                    {i.category} · <span className={prioStyle[i.priority]}>{i.priority} priority</span>
+                    {i.responsibleEntity && <> · owner {i.responsibleEntity}</>}
+                    {i.linkedCommodity && <> · {i.linkedCommodity}</>}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <div className="h-2 bg-[#1a2d45] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${
-                        item.progress >= 80 ? 'bg-emerald-500' : item.progress >= 50 ? 'bg-blue-500' : 'bg-amber-500'
-                      }`}
-                      style={{ width: `${item.progress}%` }}
-                    />
-                  </div>
-                </div>
-                <span className="text-sm font-bold text-white w-12 text-right">{item.progress}%</span>
-              </div>
+              <span className={`text-[10px] font-bold px-2 py-1 rounded border capitalize shrink-0 ${statusStyle[i.status]}`}>{i.status.replace('_', ' ')}</span>
             </div>
-          );
-        })}
+            {i.description && <p className="text-sm text-[#cbd5e1] mb-1">{i.description}</p>}
+            {i.rationale && <p className="text-xs text-[#64748b] mb-3">Why: {i.rationale}</p>}
+            {i.status !== 'completed' && i.status !== 'dismissed' && (
+              <div className="flex items-center gap-2">
+                {nextStatus[i.status] && (
+                  <button onClick={() => advance(i, nextStatus[i.status])}
+                    className="flex items-center gap-1 text-xs px-3 py-1.5 rounded bg-[#c8a45c] text-[#0B1628] font-semibold hover:bg-[#d4b76a] transition-colors">
+                    {i.status === 'in_progress' ? <Check className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    {i.status === 'suggested' ? 'Approve' : i.status === 'approved' ? 'Start' : 'Complete'}
+                  </button>
+                )}
+                <button onClick={() => advance(i, 'dismissed')}
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded bg-[#080e1a] border border-[#1a2d45] text-[#94a3b8] hover:text-white transition-colors">
+                  <X className="w-3 h-3" /> Dismiss
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </DashboardLayout>
   );

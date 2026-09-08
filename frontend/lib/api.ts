@@ -107,6 +107,14 @@ export const simulationApi = {
   run: (key: string) => apiFetch('/v1/simulation/run', { method: 'POST', body: JSON.stringify({ key }) }),
 };
 
+export const initiativesApi = {
+  list: () => apiFetch('/v1/initiatives'),
+  generate: () => apiFetch('/v1/initiatives/generate', { method: 'POST' }),
+  create: (dto: any) => apiFetch('/v1/initiatives', { method: 'POST', body: JSON.stringify(dto) }),
+  update: (id: string, dto: { status?: string; priority?: string; responsibleEntity?: string }) =>
+    apiFetch(`/v1/initiatives/${id}`, { method: 'PATCH', body: JSON.stringify(dto) }),
+};
+
 export const catalogApi = {
   list: () => apiFetch('/v1/commodities/catalog'),
   refresh: () => apiFetch('/v1/commodities/catalog/refresh', { method: 'POST' }),

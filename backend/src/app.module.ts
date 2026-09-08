@@ -24,6 +24,7 @@ import { NewsModule } from './news/news.module';
 import { DemandModule } from './demand/demand.module';
 import { ProcurementModule } from './procurement/procurement.module';
 import { SimulationModule } from './simulation/simulation.module';
+import { InitiativesModule } from './initiatives/initiatives.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { SimulationModule } from './simulation/simulation.module';
     DemandModule,
     ProcurementModule,
     SimulationModule,
+    InitiativesModule,
   ],
 })
 export class AppModule {}
