@@ -102,6 +102,11 @@ export const procurementApi = {
   get: () => apiFetch('/v1/procurement'),
 };
 
+export const simulationApi = {
+  templates: () => apiFetch('/v1/simulation/templates'),
+  run: (key: string) => apiFetch('/v1/simulation/run', { method: 'POST', body: JSON.stringify({ key }) }),
+};
+
 export const catalogApi = {
   list: () => apiFetch('/v1/commodities/catalog'),
   refresh: () => apiFetch('/v1/commodities/catalog/refresh', { method: 'POST' }),

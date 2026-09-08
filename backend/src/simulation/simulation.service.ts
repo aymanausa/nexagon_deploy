@@ -1,0 +1,168 @@
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import Anthropic from '@anthropic-ai/sdk';
+import { PrismaService } from '../prisma/prisma.service';
+import { DemandService } from '../demand/demand.service';
+import { PILLARS, INDICATORS } from '../food-index/food-index.constants';
+import { SCENARIO_TEMPLATES, ScenarioTemplate, Shocks, clamp } from './simulation.constants';
+
+// What-if stress test: perturb live baselines with a scenario's shocks and re-run our own
+// index / demand / procurement computations to show first-order before→after impact + mitigations.
+@Injectable()
+export class SimulationService {
+  private logger = new Logger('SimulationService');
+  private anthropic = process.env.ANTHROPIC_API_KEY
+    ? new Anthropic({ defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined })
+    : null;
+
+  constructor(private prisma: PrismaService, private demand: DemandService) {}
+
+  templates() {
+    return { templates: SCENARIO_TEMPLATES.map(({ shocks, ...t }) => ({ ...t })) };
+  }
+
+  async run(key: string) {
+    const tpl = SCENARIO_TEMPLATES.find((t) => t.key === key);
+    if (!tpl) throw new NotFoundException(`Unknown scenario '${key}'`);
+    const s = tpl.shocks;
+
+    // ── baselines ──
+    const [indicators, suppliers, demandData, procs] = await Promise.all([
+      this.prisma.indexIndicator.findMany(),
+      this.prisma.supplierCountry.findMany(),
+      this.demand.list(),
+      this.prisma.procurementRecommendation.findMany(),
+    ]);
+    const base = new Map<string, number | null>();
+    for (const i of indicators) base.set(i.key, i.status === 'active' ? i.score : null);
+    const perturbed = new Map(base);
+
+    // ── index sub-indicator perturbations ──
+    if (s.suppliersOffline?.length) {
+      const offline = new Set(s.suppliersOffline.map((c) => c.toUpperCase()));
+      const remaining = suppliers.filter((x) => !offline.has(x.countryCode));
+      const totalShare = remaining.reduce((a, r) => a + r.shareOfImports, 0) || 1;
+      const hhi = remaining.reduce((a, r) => a + Math.pow(r.shareOfImports / totalShare, 2), 0);
+      perturbed.set('supplyChain', clamp((1 - hhi) * 100));
+      perturbed.set('importCapacity', clamp((remaining.length / 60) * 100));
+      const wr = remaining.filter((r) => r.riskScore > 0);
+      const rws = wr.reduce((a, r) => a + r.shareOfImports, 0) || 1;
+      perturbed.set('geoRisk', clamp(100 - wr.reduce((a, r) => a + r.riskScore * r.shareOfImports, 0) / rws));
+    }
+    if (s.priceShockPct && Object.keys(s.priceShockPct).length) {
+      const shocks = Object.values(s.priceShockPct);
+      const avg = shocks.reduce((a, b) => a + b, 0) / shocks.length;
+      const baseAff = base.get('affordability');
+      if (baseAff != null) perturbed.set('affordability', clamp(baseAff - avg * 2.5));
+    }
+
+    const before = this.rollup(base);
+
+    // ── demand + procurement deltas per impacted commodity ──
+    const affected = new Set([...(tpl.impactedCommodities || [])]);
+    if (s.demandSurgePct) demandData.commodities.forEach((c: any) => affected.add(c.commodity));
+    const procBy = new Map(procs.map((p) => [p.commodity, p.action]));
+    const commodities: any[] = [];
+    let lostImportMt = 0, totalImportMt = 0;
+    for (const c of demandData.commodities as any[]) {
+      totalImportMt += c.annualImportsMt;
+      if (!affected.has(c.commodity)) continue;
+      const offlineVol = this.offlineVolume(c.commodity, suppliers, s.suppliersOffline || []);
+      const totalVol = this.totalVolume(c.commodity, suppliers) || 1;
+      const importCut = Math.min(0.95, offlineVol / totalVol + (s.importCutPct?.[c.commodity] ?? 0) / 100);
+      const prodCut = (s.productionCutPct?.[c.commodity] ?? 0) / 100;
+      const surge = (s.demandSurgePct ?? 0) / 100;
+      lostImportMt += c.annualImportsMt * importCut;
+
+      const newSupply = ((c.annualProductionMt * (1 - prodCut)) + (c.annualImportsMt * (1 - importCut))) / 12;
+      const deficitAfter = (c.months as any[]).filter((m) => newSupply < m.demand * (1 + surge) * 0.95).length;
+      const deficitBefore = c.deficitMonths.length;
+      const actionBefore = procBy.get(c.commodity) || 'hold';
+      const actionAfter = deficitAfter > deficitBefore || importCut > 0.15 || (s.priceShockPct?.[c.commodity] ?? 0) > 5 ? 'buy' : actionBefore;
+      commodities.push({
+        commodity: c.commodity,
+        importChangePct: -Math.round(importCut * 100),
+        deficitBefore, deficitAfter,
+        actionBefore, actionAfter,
+      });
+    }
+
+    // import-coverage penalty: a big supply-line cut degrades ImportCapacity in proportion to
+    // the share of the import portfolio lost — so the overall index responds to the shock.
+    if (totalImportMt > 0 && lostImportMt > 0) {
+      const lossFrac = lostImportMt / totalImportMt;
+      const ic = perturbed.get('importCapacity') ?? base.get('importCapacity');
+      if (ic != null) perturbed.set('importCapacity', clamp(ic * (1 - lossFrac)));
+    }
+    const after = this.rollup(perturbed);
+
+    const mitigations = this.mitigations(tpl, commodities);
+    const brief = this.anthropic ? await this.brief(tpl, before, after, commodities).catch(() => null) : null;
+
+    this.logger.log(`Scenario '${key}' run: index ${before.overall}→${after.overall}`);
+    return {
+      scenario: { key: tpl.key, name: tpl.name, category: tpl.category, severity: tpl.severity, description: tpl.description, triggerEvent: tpl.triggerEvent },
+      index: {
+        before: before.overall, after: after.overall, delta: after.overall - before.overall,
+        pillars: PILLARS.map((p) => ({
+          key: p.key, label: p.label,
+          before: before.pillars.find((x) => x.key === p.key)?.score ?? null,
+          after: after.pillars.find((x) => x.key === p.key)?.score ?? null,
+        })),
+      },
+      commodities, mitigations, brief,
+    };
+  }
+
+  // ── helpers ──
+  private rollup(scores: Map<string, number | null>) {
+    const pillars = PILLARS.map((p) => {
+      const subs = INDICATORS.filter((i) => i.pillar === p.key);
+      const active = subs.filter((i) => scores.get(i.key) != null);
+      const wsum = active.reduce((a, i) => a + i.weight, 0);
+      const score = wsum > 0 ? Math.round(active.reduce((a, i) => a + (scores.get(i.key) as number) * i.weight, 0) / wsum) : null;
+      return { key: p.key, weight: p.weight, score };
+    });
+    const withScore = pillars.filter((p) => p.score != null);
+    const owSum = withScore.reduce((a, p) => a + p.weight, 0);
+    const overall = owSum > 0 ? Math.round(withScore.reduce((a, p) => a + (p.score as number) * p.weight, 0) / owSum) : 0;
+    return { overall, pillars };
+  }
+
+  private offlineVolume(commodity: string, suppliers: any[], offline: string[]): number {
+    const off = new Set(offline.map((c) => c.toUpperCase()));
+    return suppliers.filter((s) => off.has(s.countryCode)).reduce((a, s) => a + this.commodityVol(s, commodity), 0);
+  }
+  private totalVolume(commodity: string, suppliers: any[]): number {
+    return suppliers.reduce((a, s) => a + this.commodityVol(s, commodity), 0);
+  }
+  private commodityVol(supplier: any, commodity: string): number {
+    const b = ((supplier.breakdown as any[]) || []).find((x) => x.commodity === commodity);
+    return b?.volumeMt || 0;
+  }
+
+  private mitigations(tpl: ScenarioTemplate, commodities: any[]): string[] {
+    const out: string[] = [];
+    const s = tpl.shocks;
+    if (s.transitDelayDays || tpl.category === 'Logistics') out.push('Reroute affected cargoes (e.g. via Jeddah/Red Sea or alternate Gulf ports) and rebook earlier sailings to absorb the delay.');
+    if (s.suppliersOffline?.length) out.push(`Activate backup origins to replace ${s.suppliersOffline.join(', ')} for ${tpl.impactedCommodities.join(', ')}; prioritise low-risk, diversified suppliers.`);
+    const buys = commodities.filter((c) => c.actionAfter === 'buy' && c.actionBefore !== 'buy').map((c) => c.commodity);
+    if (buys.length) out.push(`Accelerate forward purchases for ${buys.join(', ')} (now flip to BUY under this scenario).`);
+    const newDeficit = commodities.filter((c) => c.deficitAfter > c.deficitBefore).map((c) => c.commodity);
+    if (newDeficit.length) out.push(`Draw on strategic reserves for ${newDeficit.join(', ')} to bridge new projected deficits while imports rescale.`);
+    if (s.priceShockPct && Object.keys(s.priceShockPct).length) out.push(`Lock forward contracts for ${Object.keys(s.priceShockPct).join(', ')} before the price move fully passes through.`);
+    if (s.demandSurgePct) out.push('Pre-position stock ahead of the demand surge and coordinate release from reserves during the peak.');
+    return out;
+  }
+
+  private async brief(tpl: ScenarioTemplate, before: any, after: any, commodities: any[]) {
+    const facts = `Scenario: ${tpl.name}. Overall food-security index ${before.overall}→${after.overall}. ` +
+      commodities.map((c) => `${c.commodity}: imports ${c.importChangePct}%, deficit months ${c.deficitBefore}→${c.deficitAfter}, action ${c.actionBefore}→${c.actionAfter}`).join('; ');
+    const res = await this.anthropic!.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 500,
+      system: 'You are a food-security crisis analyst for Saudi Arabia. Given a what-if scenario\'s computed impact, write a concise markdown brief: one-sentence severity read, then 3 prioritised mitigation actions. Under 140 words. No preamble.',
+      messages: [{ role: 'user', content: facts }],
+    });
+    return res.content.filter((b) => b.type === 'text').map((b: any) => b.text).join('').trim();
+  }
+}
