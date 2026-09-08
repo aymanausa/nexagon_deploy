@@ -22,4 +22,10 @@ export class SimulationController {
     if (body.shocks) return this.service.runCustom(body.shocks, body.name);
     return this.service.run(body.key!);
   }
+
+  @Post('run-nl')
+  @ApiOperation({ summary: 'Describe a what-if in natural language → Claude translates → simulate' })
+  runNl(@Body() body: { prompt: string }) {
+    return this.service.runNl(body.prompt);
+  }
 }

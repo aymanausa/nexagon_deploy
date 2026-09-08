@@ -33,12 +33,24 @@ export default function ScenariosPage() {
   const [importCuts, setImportCuts] = useState<Record<string, number>>({});
   const [demandSurge, setDemandSurge] = useState(0);
   const [offline, setOffline] = useState('');
+  // natural-language state
+  const [nlPrompt, setNlPrompt] = useState('');
+  const [interpreted, setInterpreted] = useState<any>(null);
 
   useEffect(() => { simulationApi.templates().then((r) => setTemplates(r.templates || [])).catch(() => {}); }, []);
 
   const run = async (key: string) => {
-    setRunning(key); setResult(null);
+    setRunning(key); setResult(null); setInterpreted(null);
     try { setResult(await simulationApi.run(key)); } catch {} finally { setRunning(null); }
+  };
+
+  const runNl = async () => {
+    if (!nlPrompt.trim()) return;
+    setRunning('nl'); setResult(null); setInterpreted(null);
+    try {
+      const r = await simulationApi.runNl(nlPrompt.trim());
+      setInterpreted(r.interpreted); setResult(r);
+    } catch {} finally { setRunning(null); }
   };
 
   const runCustom = async () => {
@@ -50,7 +62,7 @@ export default function ScenariosPage() {
     if (demandSurge > 0) shocks.demandSurgePct = demandSurge;
     if (suppliersOffline.length) shocks.suppliersOffline = suppliersOffline;
     if (!Object.keys(shocks).length) return;
-    setRunning('custom'); setResult(null);
+    setRunning('custom'); setResult(null); setInterpreted(null);
     try { setResult(await simulationApi.runCustom(shocks, 'Custom what-if')); } catch {} finally { setRunning(null); }
   };
 
@@ -59,6 +71,32 @@ export default function ScenariosPage() {
       <p className="text-sm text-[#94a3b8] mb-4 flex items-center gap-2">
         <BrainCircuit className="w-4 h-4 text-[#c8a45c]" /> What-if stress tests — apply a shock and re-run the food-security index, demand &amp; procurement to see the impact + mitigations.
       </p>
+
+      {/* Natural-language what-if */}
+      <div className="bg-gradient-to-br from-[#c8a45c]/10 to-[#0f1d2f] border border-[#c8a45c]/30 rounded-xl p-5 mb-6">
+        <p className="text-sm font-semibold text-white flex items-center gap-2 mb-2"><Sparkles className="w-4 h-4 text-[#c8a45c]" /> Describe a what-if in plain English</p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input value={nlPrompt} onChange={(e) => setNlPrompt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && runNl()}
+            placeholder="e.g. India bans wheat exports and a drought hits Argentina"
+            className="flex-1 bg-[#080e1a] border border-[#1a2d45] rounded-lg px-3 py-2 text-sm text-white placeholder-[#475569] outline-none focus:border-[#c8a45c]" />
+          <button onClick={runNl} disabled={!!running || !nlPrompt.trim()}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-[#c8a45c] text-[#0B1628] rounded-lg text-sm font-semibold hover:bg-[#d4b76a] transition-colors disabled:opacity-50">
+            {running === 'nl' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {running === 'nl' ? 'Interpreting…' : 'Simulate'}
+          </button>
+        </div>
+        {interpreted && (
+          <p className="text-[11px] text-[#94a3b8] mt-2">
+            Interpreted as: {[
+              interpreted.suppliersOffline?.length ? `offline: ${interpreted.suppliersOffline.join(', ')}` : '',
+              interpreted.importCutPct ? `import cuts ${Object.entries(interpreted.importCutPct).map(([k, v]) => `${k} ${v}%`).join(', ')}` : '',
+              interpreted.productionCutPct ? `production cuts ${Object.entries(interpreted.productionCutPct).map(([k, v]) => `${k} ${v}%`).join(', ')}` : '',
+              interpreted.priceShockPct ? `price shocks ${Object.entries(interpreted.priceShockPct).map(([k, v]) => `${k} +${v}%`).join(', ')}` : '',
+              interpreted.demandSurgePct ? `demand +${interpreted.demandSurgePct}%` : '',
+            ].filter(Boolean).join(' · ') || 'no recognised shocks'}
+          </p>
+        )}
+      </div>
 
       {/* Scenario templates */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">

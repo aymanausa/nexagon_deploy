@@ -106,6 +106,7 @@ export const simulationApi = {
   templates: () => apiFetch('/v1/simulation/templates'),
   run: (key: string) => apiFetch('/v1/simulation/run', { method: 'POST', body: JSON.stringify({ key }) }),
   runCustom: (shocks: any, name?: string) => apiFetch('/v1/simulation/run', { method: 'POST', body: JSON.stringify({ shocks, name }) }),
+  runNl: (prompt: string) => apiFetch('/v1/simulation/run-nl', { method: 'POST', body: JSON.stringify({ prompt }) }),
 };
 
 export const initiativesApi = {
