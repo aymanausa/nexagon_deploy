@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { BrainCircuit, Play, Sparkles, ArrowRight, AlertTriangle, ShieldCheck, Loader2 } from 'lucide-react';
+import { BrainCircuit, Play, Sparkles, ArrowRight, AlertTriangle, ShieldCheck, Loader2, Wrench, ChevronDown, ChevronRight } from 'lucide-react';
 import { simulationApi } from '@/lib/api';
+
+const BUILDER_COMMODITIES = ['Wheat', 'Rice', 'Barley', 'Corn', 'Soybean', 'Palm Oil', 'Sugar', 'Chicken', 'Beef', 'Milk Powder'];
 
 interface Template { key: string; name: string; category: string; severity: string; description: string; triggerEvent: string; impactedCommodities: string[] }
 interface RunResult {
@@ -26,11 +28,30 @@ export default function ScenariosPage() {
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState<string | null>(null);
 
+  // custom builder state
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [importCuts, setImportCuts] = useState<Record<string, number>>({});
+  const [demandSurge, setDemandSurge] = useState(0);
+  const [offline, setOffline] = useState('');
+
   useEffect(() => { simulationApi.templates().then((r) => setTemplates(r.templates || [])).catch(() => {}); }, []);
 
   const run = async (key: string) => {
     setRunning(key); setResult(null);
     try { setResult(await simulationApi.run(key)); } catch {} finally { setRunning(null); }
+  };
+
+  const runCustom = async () => {
+    const importCutPct: Record<string, number> = {};
+    for (const [k, v] of Object.entries(importCuts)) if (v > 0) importCutPct[k] = v;
+    const suppliersOffline = offline.split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]{2}$/.test(s));
+    const shocks: any = {};
+    if (Object.keys(importCutPct).length) shocks.importCutPct = importCutPct;
+    if (demandSurge > 0) shocks.demandSurgePct = demandSurge;
+    if (suppliersOffline.length) shocks.suppliersOffline = suppliersOffline;
+    if (!Object.keys(shocks).length) return;
+    setRunning('custom'); setResult(null);
+    try { setResult(await simulationApi.runCustom(shocks, 'Custom what-if')); } catch {} finally { setRunning(null); }
   };
 
   return (
@@ -57,6 +78,48 @@ export default function ScenariosPage() {
             </button>
           </div>
         ))}
+      </div>
+
+      {/* Custom builder */}
+      <div className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl mb-6">
+        <button onClick={() => setShowBuilder((v) => !v)} className="w-full flex items-center gap-2 p-5 text-left">
+          {showBuilder ? <ChevronDown className="w-4 h-4 text-[#94a3b8]" /> : <ChevronRight className="w-4 h-4 text-[#94a3b8]" />}
+          <Wrench className="w-4 h-4 text-[#c8a45c]" />
+          <span className="font-semibold text-white">Build your own scenario</span>
+          <span className="text-xs text-[#64748b]">— compose a custom shock and stress-test it</span>
+        </button>
+        {showBuilder && (
+          <div className="px-5 pb-5 border-t border-[#1a2d45] pt-4">
+            <p className="text-xs text-[#94a3b8] mb-3">Import cut % per commodity (0 = unaffected):</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+              {BUILDER_COMMODITIES.map((c) => (
+                <div key={c}>
+                  <label className="block text-[11px] text-[#94a3b8] mb-1">{c}</label>
+                  <input type="number" min={0} max={100} value={importCuts[c] || 0}
+                    onChange={(e) => setImportCuts((m) => ({ ...m, [c]: Number(e.target.value) }))}
+                    className="w-full bg-[#080e1a] border border-[#1a2d45] rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-[#c8a45c]" />
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="block text-[11px] text-[#94a3b8] mb-1">Demand surge %</label>
+                <input type="number" min={0} max={100} value={demandSurge} onChange={(e) => setDemandSurge(Number(e.target.value))}
+                  className="w-28 bg-[#080e1a] border border-[#1a2d45] rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-[#c8a45c]" />
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-[11px] text-[#94a3b8] mb-1">Suppliers offline (ISO2, comma-separated — e.g. IN, RU)</label>
+                <input value={offline} onChange={(e) => setOffline(e.target.value)} placeholder="IN, BR, RU"
+                  className="w-full bg-[#080e1a] border border-[#1a2d45] rounded-lg px-2 py-1.5 text-sm text-white placeholder-[#475569] outline-none focus:border-[#c8a45c]" />
+              </div>
+              <button onClick={runCustom} disabled={!!running}
+                className="flex items-center gap-2 px-4 py-2 bg-[#c8a45c] text-[#0B1628] rounded-lg text-sm font-semibold hover:bg-[#d4b76a] transition-colors disabled:opacity-50">
+                {running === 'custom' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                {running === 'custom' ? 'Simulating…' : 'Run custom scenario'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Result panel */}

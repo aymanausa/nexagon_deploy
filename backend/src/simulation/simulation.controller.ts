@@ -17,8 +17,9 @@ export class SimulationController {
   }
 
   @Post('run')
-  @ApiOperation({ summary: 'Run a scenario — recompute index/demand/procurement impact + mitigations' })
-  run(@Body() body: { key: string }) {
-    return this.service.run(body.key);
+  @ApiOperation({ summary: 'Run a scenario by template key, or a custom {shocks} payload' })
+  run(@Body() body: { key?: string; shocks?: any; name?: string }) {
+    if (body.shocks) return this.service.runCustom(body.shocks, body.name);
+    return this.service.run(body.key!);
   }
 }

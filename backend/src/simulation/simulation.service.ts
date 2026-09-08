@@ -5,6 +5,12 @@ import { DemandService } from '../demand/demand.service';
 import { PILLARS, INDICATORS } from '../food-index/food-index.constants';
 import { SCENARIO_TEMPLATES, ScenarioTemplate, Shocks, clamp } from './simulation.constants';
 
+// A scenario to simulate — a template, or a custom / AI / auto-generated one (no fixed key).
+type ScenarioMeta = Omit<ScenarioTemplate, 'key'> & { key?: string };
+
+// commodities the platform tracks a demand baseline for + the FBS/price set (used for validation)
+const KNOWN_COMMODITIES = ['Wheat', 'Rice', 'Barley', 'Corn', 'Soybean', 'Palm Oil', 'Sugar', 'Chicken', 'Beef', 'Milk Powder'];
+
 // What-if stress test: perturb live baselines with a scenario's shocks and re-run our own
 // index / demand / procurement computations to show first-order before→after impact + mitigations.
 @Injectable()
@@ -23,7 +29,22 @@ export class SimulationService {
   async run(key: string) {
     const tpl = SCENARIO_TEMPLATES.find((t) => t.key === key);
     if (!tpl) throw new NotFoundException(`Unknown scenario '${key}'`);
-    const s = tpl.shocks;
+    return this.simulate(tpl);
+  }
+
+  // Run a user-defined (or AI / auto-generated) set of shocks.
+  async runCustom(shocks: Shocks, name?: string) {
+    const clean = this.validateShocks(shocks);
+    return this.simulate({
+      name: name?.trim() || 'Custom scenario', category: 'Custom',
+      severity: this.severityOf(clean), description: 'User-defined shock scenario',
+      triggerEvent: 'Custom what-if', impactedCommodities: this.deriveImpacted(clean), shocks: clean,
+    });
+  }
+
+  // Core: apply shocks → recompute index/demand/procurement → before→after impact + mitigations.
+  private async simulate(meta: ScenarioMeta) {
+    const s = meta.shocks;
 
     // ── baselines ──
     const [indicators, suppliers, demandData, procs] = await Promise.all([
@@ -58,8 +79,12 @@ export class SimulationService {
     const before = this.rollup(base);
 
     // ── demand + procurement deltas per impacted commodity ──
-    const affected = new Set([...(tpl.impactedCommodities || [])]);
+    const affected = new Set([...(meta.impactedCommodities || [])]);
     if (s.demandSurgePct) demandData.commodities.forEach((c: any) => affected.add(c.commodity));
+    if (s.suppliersOffline?.length) {
+      const off = new Set(s.suppliersOffline.map((c) => c.toUpperCase()));
+      suppliers.filter((x) => off.has(x.countryCode)).forEach((x) => ((x.breakdown as any[]) || []).forEach((b) => b.commodity && affected.add(b.commodity)));
+    }
     const procBy = new Map(procs.map((p) => [p.commodity, p.action]));
     const commodities: any[] = [];
     let lostImportMt = 0, totalImportMt = 0;
@@ -95,12 +120,12 @@ export class SimulationService {
     }
     const after = this.rollup(perturbed);
 
-    const mitigations = this.mitigations(tpl, commodities);
-    const brief = this.anthropic ? await this.brief(tpl, before, after, commodities).catch(() => null) : null;
+    const mitigations = this.mitigations(meta, commodities);
+    const brief = this.anthropic ? await this.brief(meta, before, after, commodities).catch(() => null) : null;
 
-    this.logger.log(`Scenario '${key}' run: index ${before.overall}→${after.overall}`);
+    this.logger.log(`Scenario '${meta.key || meta.name}' run: index ${before.overall}→${after.overall}`);
     return {
-      scenario: { key: tpl.key, name: tpl.name, category: tpl.category, severity: tpl.severity, description: tpl.description, triggerEvent: tpl.triggerEvent },
+      scenario: { key: meta.key, name: meta.name, category: meta.category, severity: meta.severity, description: meta.description, triggerEvent: meta.triggerEvent },
       index: {
         before: before.overall, after: after.overall, delta: after.overall - before.overall,
         pillars: PILLARS.map((p) => ({
@@ -140,11 +165,47 @@ export class SimulationService {
     return b?.volumeMt || 0;
   }
 
-  private mitigations(tpl: ScenarioTemplate, commodities: any[]): string[] {
+  // sanitise a user/AI-supplied shock: clamp %s to 0–100, keep only known commodities, uppercase ISO2
+  private validateShocks(raw: Shocks): Shocks {
+    const pctMap = (m?: Record<string, number>) => {
+      const out: Record<string, number> = {};
+      for (const [k, v] of Object.entries(m || {})) if (KNOWN_COMMODITIES.includes(k) && Number.isFinite(v)) out[k] = clamp(Number(v), 0, 100);
+      return Object.keys(out).length ? out : undefined;
+    };
+    return {
+      suppliersOffline: (raw.suppliersOffline || []).map((c) => String(c).toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c)),
+      importCutPct: pctMap(raw.importCutPct),
+      productionCutPct: pctMap(raw.productionCutPct),
+      priceShockPct: pctMap(raw.priceShockPct),
+      demandSurgePct: raw.demandSurgePct != null ? clamp(Number(raw.demandSurgePct), 0, 100) : undefined,
+      transitDelayDays: raw.transitDelayDays != null ? Math.max(0, Math.round(Number(raw.transitDelayDays))) : undefined,
+    };
+  }
+
+  private deriveImpacted(s: Shocks): string[] {
+    const set = new Set<string>();
+    for (const m of [s.importCutPct, s.productionCutPct, s.priceShockPct]) for (const k of Object.keys(m || {})) set.add(k);
+    if (s.demandSurgePct) KNOWN_COMMODITIES.forEach((c) => set.add(c));
+    // supplier-offline impact is resolved per-commodity in simulate(); include none extra here
+    return [...set];
+  }
+
+  private severityOf(s: Shocks): 'moderate' | 'high' | 'severe' {
+    const maxPct = Math.max(
+      0, s.demandSurgePct ?? 0,
+      ...Object.values(s.importCutPct || {}), ...Object.values(s.productionCutPct || {}), ...Object.values(s.priceShockPct || {}),
+    );
+    const offline = (s.suppliersOffline || []).length;
+    if (maxPct >= 40 || offline >= 3) return 'severe';
+    if (maxPct >= 20 || offline >= 1) return 'high';
+    return 'moderate';
+  }
+
+  private mitigations(meta: ScenarioMeta, commodities: any[]): string[] {
     const out: string[] = [];
-    const s = tpl.shocks;
-    if (s.transitDelayDays || tpl.category === 'Logistics') out.push('Reroute affected cargoes (e.g. via Jeddah/Red Sea or alternate Gulf ports) and rebook earlier sailings to absorb the delay.');
-    if (s.suppliersOffline?.length) out.push(`Activate backup origins to replace ${s.suppliersOffline.join(', ')} for ${tpl.impactedCommodities.join(', ')}; prioritise low-risk, diversified suppliers.`);
+    const s = meta.shocks;
+    if (s.transitDelayDays || meta.category === 'Logistics') out.push('Reroute affected cargoes (e.g. via Jeddah/Red Sea or alternate Gulf ports) and rebook earlier sailings to absorb the delay.');
+    if (s.suppliersOffline?.length) out.push(`Activate backup origins to replace ${s.suppliersOffline.join(', ')} for ${meta.impactedCommodities.join(', ')}; prioritise low-risk, diversified suppliers.`);
     const buys = commodities.filter((c) => c.actionAfter === 'buy' && c.actionBefore !== 'buy').map((c) => c.commodity);
     if (buys.length) out.push(`Accelerate forward purchases for ${buys.join(', ')} (now flip to BUY under this scenario).`);
     const newDeficit = commodities.filter((c) => c.deficitAfter > c.deficitBefore).map((c) => c.commodity);
@@ -154,8 +215,8 @@ export class SimulationService {
     return out;
   }
 
-  private async brief(tpl: ScenarioTemplate, before: any, after: any, commodities: any[]) {
-    const facts = `Scenario: ${tpl.name}. Overall food-security index ${before.overall}→${after.overall}. ` +
+  private async brief(meta: ScenarioMeta, before: any, after: any, commodities: any[]) {
+    const facts = `Scenario: ${meta.name}. Overall food-security index ${before.overall}→${after.overall}. ` +
       commodities.map((c) => `${c.commodity}: imports ${c.importChangePct}%, deficit months ${c.deficitBefore}→${c.deficitAfter}, action ${c.actionBefore}→${c.actionAfter}`).join('; ');
     const res = await this.anthropic!.messages.create({
       model: 'claude-opus-4-8',
