@@ -64,7 +64,10 @@ before/after, action before/after; rule-based mitigations; and a Claude "crisis 
    - persists a `Scenario` (`isActive='auto'`, impact in `projectedOutcomes`),
    - raises an `Alert` (level/category from severity/eventType, recommendedAction = top mitigation),
    - creates a tracked `Initiative` (`sourceKey scenario:…`) — closing the loop.
-   Deduped by `sourceKey = auto:{eventType}:{commodity}:{country}`; **human-in-the-loop** (auto
+   **Corridor fallback:** a logistics/conflict signal with *no* commodity but mentioning a shipping
+   route (Red Sea/Bab-el-Mandeb/Suez, Hormuz/Gulf → `corridorForText`) maps to that corridor's
+   routed-commodity shocks — so chokepoint threats aren't missed. Deduped by
+   `sourceKey = auto:{eventType}:{commodity}:{country}` (or `auto:corridor:{key}`); **human-in-the-loop** (auto
    scenarios are proposals). Config in `AppConfig` `auto-scenario-config` (`materialityIndexDrop`,
    `lookbackDays`); shock magnitudes in `shocksForEvent` (estimates, tunable).
 

@@ -103,6 +103,26 @@ export function shocksForEvent(eventType: string, commodity: string, iso2?: stri
   }
 }
 
+// Corridor/chokepoint fallback: a logistics/conflict signal about a shipping route (no specific
+// commodity) still threatens the commodities that transit it. Maps route mentions → shocks.
+export const CORRIDORS: { key: string; name: string; terms: string[]; shocks: Shocks }[] = [
+  {
+    key: 'red-sea', name: 'Red Sea / Suez corridor',
+    terms: ['red sea', 'bab-el-mandeb', 'bab el mandeb', 'bab al-mandab', 'suez', 'jeddah port'],
+    shocks: { importCutPct: { Wheat: 20, Rice: 20, Barley: 20, Corn: 20 }, transitDelayDays: 14 },
+  },
+  {
+    key: 'hormuz', name: 'Hormuz / Arabian Gulf corridor',
+    terms: ['hormuz', 'arabian gulf', 'persian gulf', 'dammam port', 'strait of hormuz'],
+    shocks: { importCutPct: { Rice: 25 }, transitDelayDays: 10 },
+  },
+];
+
+export function corridorForText(text: string) {
+  const t = (text || '').toLowerCase();
+  return CORRIDORS.find((c) => c.terms.some((term) => t.includes(term))) || null;
+}
+
 export const AUTO_CONFIG_KEY = 'auto-scenario-config';
 export interface AutoConfig { materialityIndexDrop: number; lookbackDays: number }
 export const DEFAULT_AUTO_CONFIG: AutoConfig = { materialityIndexDrop: 1, lookbackDays: 7 };

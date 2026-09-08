@@ -6,7 +6,7 @@ import { DemandService } from '../demand/demand.service';
 import { PILLARS, INDICATORS } from '../food-index/food-index.constants';
 import {
   SCENARIO_TEMPLATES, ScenarioTemplate, Shocks, clamp,
-  shocksForEvent, AUTO_CONFIG_KEY, DEFAULT_AUTO_CONFIG, AutoConfig, SEVERITY_MAP, EVENT_ALERT_CATEGORY,
+  shocksForEvent, AUTO_CONFIG_KEY, DEFAULT_AUTO_CONFIG, AutoConfig, SEVERITY_MAP, EVENT_ALERT_CATEGORY, corridorForText,
 } from './simulation.constants';
 
 // A scenario to simulate — a template, or a custom / AI / auto-generated one (no fixed key).
@@ -75,20 +75,17 @@ export class SimulationService {
     const seen = new Set<string>();
     let created = 0;
     for (const sig of signals) {
-      const commodity = sig.commodity || '';
-      if (!KNOWN_COMMODITIES.includes(commodity)) continue;
-      const iso2 = sig.country ? nameToIso.get(sig.country.toLowerCase()) : undefined;
-      const shocks = shocksForEvent(sig.eventType, commodity, iso2);
-      if (!shocks) continue;
-      const sourceKey = `auto:${sig.eventType}:${commodity}:${sig.country || '-'}`;
+      const cand = this.candidateFor(sig, nameToIso);
+      if (!cand) continue;
+      const sourceKey = cand.sourceKey;
       if (seen.has(sourceKey)) continue;
       seen.add(sourceKey);
       const existing = await this.prisma.scenario.findUnique({ where: { sourceKey } });
       if (existing && Date.now() - existing.createdAt.getTime() < cfg.lookbackDays * 864e5) continue; // recent dup
 
-      const clean = this.validateShocks(shocks);
+      const clean = this.validateShocks(cand.shocks);
       const result = await this.simulate({
-        name: `${this.eventLabel(sig.eventType)} — ${commodity}`, category: 'Auto-detected',
+        name: cand.name, category: 'Auto-detected',
         severity: SEVERITY_MAP[sig.severity] || 'high', description: sig.summary || sig.title,
         triggerEvent: sig.title, impactedCommodities: this.deriveImpacted(clean), shocks: clean,
       });
@@ -120,12 +117,12 @@ export class SimulationService {
         await this.prisma.alert.create({
           data: {
             level: (result.index.delta <= -3 ? 'RED' : 'AMBER') as any,
-            category: (EVENT_ALERT_CATEGORY[sig.eventType] || 'SUPPLY') as any,
+            category: (EVENT_ALERT_CATEGORY[cand.alertEvent] || 'SUPPLY') as any,
             title: `${result.scenario.name}: food-security index -${Math.abs(result.index.delta)}`,
             description: `Emerging signal "${sig.title}" would cut the index ${result.index.before}→${result.index.after}.`,
             source: 'Auto-Scenario', metric: sourceKey,
             recommendedAction: result.mitigations[0] || 'Review scenario and pre-position.',
-            metadata: { sourceKey, commodity } as any,
+            metadata: { sourceKey } as any,
           },
         });
       }
@@ -136,7 +133,7 @@ export class SimulationService {
       if (!existingInit) {
         await this.prisma.initiative.create({
           data: {
-            sourceKey: iKey, source: 'auto-scenario', linkedCommodity: commodity,
+            sourceKey: iKey, source: 'auto-scenario', linkedCommodity: sig.commodity || null,
             title: `Respond to ${result.scenario.name}`, category: 'Contingency', targetSector: 'Food Security',
             actionType: 'scenario-response', priority: sevEnum === 'EXTREME' ? 'critical' : 'high',
             description: sig.summary || sig.title, rationale: result.mitigations[0] || '', status: 'suggested',
@@ -147,6 +144,22 @@ export class SimulationService {
     }
     this.logger.log(`Auto-scenarios: ${created} material scenario(s) generated from ${signals.length} signals`);
     return { created, scanned: signals.length };
+  }
+
+  // Turn a news signal into a simulation candidate: a tracked-commodity shock, or — for a
+  // commodity-less logistics/conflict signal about a shipping route — a corridor shock.
+  private candidateFor(sig: any, nameToIso: Map<string, string>): { sourceKey: string; name: string; shocks: Shocks; alertEvent: string } | null {
+    const commodity = sig.commodity || '';
+    if (KNOWN_COMMODITIES.includes(commodity)) {
+      const iso2 = sig.country ? nameToIso.get(sig.country.toLowerCase()) : undefined;
+      const shocks = shocksForEvent(sig.eventType, commodity, iso2);
+      if (shocks) return { sourceKey: `auto:${sig.eventType}:${commodity}:${sig.country || '-'}`, name: `${this.eventLabel(sig.eventType)} — ${commodity}`, shocks, alertEvent: sig.eventType };
+    }
+    if (['logistics', 'conflict'].includes(sig.eventType)) {
+      const corr = corridorForText(`${sig.title} ${sig.summary || ''}`);
+      if (corr) return { sourceKey: `auto:corridor:${corr.key}`, name: `${corr.name} disruption`, shocks: corr.shocks, alertEvent: 'logistics' };
+    }
+    return null;
   }
 
   private eventLabel(e: string): string {
