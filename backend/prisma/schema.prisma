@@ -209,6 +209,7 @@ model Scenario {
   projectedOutcomes  Json            @default("[]") @map("projected_outcomes")
   mitigationOptions  Json            @default("[]") @map("mitigation_options")
   isActive           String          @default("draft") @map("is_active")
+  sourceKey          String?         @unique @map("source_key") // dedupe for auto-generated scenarios
   createdAt          DateTime        @default(now()) @map("created_at")
 
   @@index([category])

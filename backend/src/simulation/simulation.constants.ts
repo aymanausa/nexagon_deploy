@@ -86,3 +86,31 @@ export const SCENARIO_TEMPLATES: ScenarioTemplate[] = [
 ];
 
 export const clamp = (v: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
+
+// ── Auto-generator (Phase 3): translate a classified news signal into shocks ──
+// Magnitudes are estimates (a headline → a % is inherently fuzzy) — tunable here.
+export function shocksForEvent(eventType: string, commodity: string, iso2?: string): Shocks | null {
+  const off = iso2 ? [iso2] : undefined;
+  switch (eventType) {
+    case 'export-ban':
+    case 'policy': return { importCutPct: { [commodity]: 40 }, suppliersOffline: off };
+    case 'drought':
+    case 'climate': return { productionCutPct: { [commodity]: 20 }, priceShockPct: { [commodity]: 15 } };
+    case 'logistics': return { importCutPct: { [commodity]: 20 }, transitDelayDays: 14 };
+    case 'disease': return { suppliersOffline: off, importCutPct: { [commodity]: 25 } };
+    case 'price': return { priceShockPct: { [commodity]: 20 } };
+    default: return null;
+  }
+}
+
+export const AUTO_CONFIG_KEY = 'auto-scenario-config';
+export interface AutoConfig { materialityIndexDrop: number; lookbackDays: number }
+export const DEFAULT_AUTO_CONFIG: AutoConfig = { materialityIndexDrop: 1, lookbackDays: 7 };
+
+// news severity → scenario severity / alert level
+export const SEVERITY_MAP: Record<string, 'moderate' | 'high' | 'severe'> = { high: 'severe', medium: 'high', low: 'moderate' };
+// event type → AlertCategory enum
+export const EVENT_ALERT_CATEGORY: Record<string, string> = {
+  'export-ban': 'GEOPOLITICAL', policy: 'GEOPOLITICAL', drought: 'CLIMATE', climate: 'CLIMATE',
+  logistics: 'LOGISTICS', disease: 'SUPPLY', price: 'PRICE',
+};

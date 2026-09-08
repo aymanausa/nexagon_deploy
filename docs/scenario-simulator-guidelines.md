@@ -47,9 +47,30 @@ the **directly-affected** sub-indicators are recomputed with the **same formulas
 Output: overall index before→after (Δ) + per-pillar; per-commodity import change, deficit
 before/after, action before/after; rule-based mitigations; and a Claude "crisis brief".
 
-## 3. Endpoints
-- `GET /v1/simulation/templates` — scenario catalog.
-- `POST /v1/simulation/run { key }` — compute-on-demand (no persistence); returns the impact.
+## 3. Three ways to run a scenario (scalable & proactive)
+1. **Templates** — the curated KSA scenarios above.
+2. **Custom builder** — `POST /v1/simulation/run { shocks, name }`: compose any shock (import cuts,
+   production cuts, price shocks, suppliers offline, demand surge). Validated (clamp %, known
+   commodities, ISO2), impacted commodities + severity auto-derived.
+3. **Natural language** — `POST /v1/simulation/run-nl { prompt }`: Claude translates plain English
+   (e.g. *"India bans rice exports and a drought hits Brazil"*) into structured shocks (prompt is
+   treated as data, injection-hardened), returned for transparency, then simulated.
+4. **Autonomous daily generator** (proactive) — `autoGenerate()` (`@Cron` daily 06:00 + admin
+   `POST /v1/simulation/auto-generate`): scans recent **high-severity news signals** carrying a
+   tracked commodity, maps `eventType → shocks` (`shocksForEvent`: export-ban→import cut+offline,
+   drought→production cut+price, logistics→transit+import cut, disease→offline, price→price shock;
+   country name→ISO2 via suppliers), simulates, and **if material** (index Δ ≤ −`materialityIndexDrop`
+   OR a new deficit OR a procurement flip to BUY) it:
+   - persists a `Scenario` (`isActive='auto'`, impact in `projectedOutcomes`),
+   - raises an `Alert` (level/category from severity/eventType, recommendedAction = top mitigation),
+   - creates a tracked `Initiative` (`sourceKey scenario:…`) — closing the loop.
+   Deduped by `sourceKey = auto:{eventType}:{commodity}:{country}`; **human-in-the-loop** (auto
+   scenarios are proposals). Config in `AppConfig` `auto-scenario-config` (`materialityIndexDrop`,
+   `lookbackDays`); shock magnitudes in `shocksForEvent` (estimates, tunable).
+
+## Endpoints
+- `GET /v1/simulation/templates` · `POST /v1/simulation/run` (key or shocks) · `POST /run-nl` ·
+  `GET /v1/simulation/auto` · `POST /v1/simulation/auto-generate` (admin).
 
 ## 4. Known simplifications (ceilings)
 - **First-order only** — recomputes the sub-indicators a shock *directly* touches; others held

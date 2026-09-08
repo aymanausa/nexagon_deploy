@@ -107,6 +107,8 @@ export const simulationApi = {
   run: (key: string) => apiFetch('/v1/simulation/run', { method: 'POST', body: JSON.stringify({ key }) }),
   runCustom: (shocks: any, name?: string) => apiFetch('/v1/simulation/run', { method: 'POST', body: JSON.stringify({ shocks, name }) }),
   runNl: (prompt: string) => apiFetch('/v1/simulation/run-nl', { method: 'POST', body: JSON.stringify({ prompt }) }),
+  listAuto: () => apiFetch('/v1/simulation/auto'),
+  autoGenerate: () => apiFetch('/v1/simulation/auto-generate', { method: 'POST' }),
 };
 
 export const initiativesApi = {

@@ -36,8 +36,11 @@ export default function ScenariosPage() {
   // natural-language state
   const [nlPrompt, setNlPrompt] = useState('');
   const [interpreted, setInterpreted] = useState<any>(null);
+  // auto-detected scenarios
+  const [auto, setAuto] = useState<any[]>([]);
 
-  useEffect(() => { simulationApi.templates().then((r) => setTemplates(r.templates || [])).catch(() => {}); }, []);
+  const loadAuto = () => simulationApi.listAuto().then((r) => setAuto(r.scenarios || [])).catch(() => {});
+  useEffect(() => { simulationApi.templates().then((r) => setTemplates(r.templates || [])).catch(() => {}); loadAuto(); }, []);
 
   const run = async (key: string) => {
     setRunning(key); setResult(null); setInterpreted(null);
@@ -97,6 +100,35 @@ export default function ScenariosPage() {
           </p>
         )}
       </div>
+
+      {/* Auto-detected scenarios (proactive) */}
+      {auto.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4 text-red-400" /> Auto-detected from live signals
+            <span className="text-[10px] text-[#64748b] font-normal">— the system stress-tested these itself</span>
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {auto.map((s) => {
+              const idx = (s.projectedOutcomes as any)?.index;
+              return (
+                <div key={s.id} className="bg-red-500/5 border border-red-500/30 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] text-red-400 px-2 py-0.5 rounded bg-red-500/10 border border-red-500/30">AUTO · {s.severity}</span>
+                    <span className="text-[10px] text-[#64748b]">{new Date(s.createdAt).toLocaleDateString('en')}</span>
+                  </div>
+                  <h4 className="font-semibold text-white">{s.name}</h4>
+                  <p className="text-xs text-[#94a3b8] mt-0.5 mb-2">Trigger: {s.triggerEvent}</p>
+                  {idx && <p className="text-sm text-white mb-2">Index {idx.before} → <span className="text-red-400 font-bold">{idx.after}</span> ({idx.delta})</p>}
+                  {(s.mitigationOptions as string[])?.length > 0 && (
+                    <p className="text-[11px] text-[#cbd5e1]">▸ {(s.mitigationOptions as string[])[0]}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Scenario templates */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">

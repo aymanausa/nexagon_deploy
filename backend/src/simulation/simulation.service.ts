@@ -1,9 +1,13 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service';
 import { DemandService } from '../demand/demand.service';
 import { PILLARS, INDICATORS } from '../food-index/food-index.constants';
-import { SCENARIO_TEMPLATES, ScenarioTemplate, Shocks, clamp } from './simulation.constants';
+import {
+  SCENARIO_TEMPLATES, ScenarioTemplate, Shocks, clamp,
+  shocksForEvent, AUTO_CONFIG_KEY, DEFAULT_AUTO_CONFIG, AutoConfig, SEVERITY_MAP, EVENT_ALERT_CATEGORY,
+} from './simulation.constants';
 
 // A scenario to simulate — a template, or a custom / AI / auto-generated one (no fixed key).
 type ScenarioMeta = Omit<ScenarioTemplate, 'key'> & { key?: string };
@@ -40,6 +44,113 @@ export class SimulationService {
       severity: this.severityOf(clean), description: 'User-defined shock scenario',
       triggerEvent: 'Custom what-if', impactedCommodities: this.deriveImpacted(clean), shocks: clean,
     });
+  }
+
+  // ── Phase 3: autonomous daily generator ──
+  async getAutoConfig(): Promise<AutoConfig> {
+    const row = await this.prisma.appConfig.findUnique({ where: { key: AUTO_CONFIG_KEY } });
+    return { ...DEFAULT_AUTO_CONFIG, ...((row?.value as any) || {}) };
+  }
+
+  async listAuto() {
+    const rows = await this.prisma.scenario.findMany({ where: { isActive: 'auto' }, orderBy: { createdAt: 'desc' }, take: 20 });
+    return { scenarios: rows, count: rows.length };
+  }
+
+  @Cron('0 6 * * *') // daily 06:00
+  async scheduledAuto() {
+    await this.autoGenerate().catch((e) => this.logger.warn(`scheduled auto-generate failed: ${e.message}`));
+  }
+
+  // Scan recent high-severity news signals → build shocks → simulate → if material, persist a
+  // scenario + raise an alert + create a tracked initiative. Deduped by sourceKey; human-in-the-loop.
+  async autoGenerate() {
+    const cfg = await this.getAutoConfig();
+    const since = new Date(Date.now() - cfg.lookbackDays * 864e5);
+    const [signals, suppliers] = await Promise.all([
+      this.prisma.newsSignal.findMany({ where: { severity: 'high', publishedAt: { gte: since } }, orderBy: { publishedAt: 'desc' }, take: 40 }),
+      this.prisma.supplierCountry.findMany({ select: { name: true, countryCode: true } }),
+    ]);
+    const nameToIso = new Map(suppliers.map((s) => [s.name.toLowerCase(), s.countryCode]));
+    const seen = new Set<string>();
+    let created = 0;
+    for (const sig of signals) {
+      const commodity = sig.commodity || '';
+      if (!KNOWN_COMMODITIES.includes(commodity)) continue;
+      const iso2 = sig.country ? nameToIso.get(sig.country.toLowerCase()) : undefined;
+      const shocks = shocksForEvent(sig.eventType, commodity, iso2);
+      if (!shocks) continue;
+      const sourceKey = `auto:${sig.eventType}:${commodity}:${sig.country || '-'}`;
+      if (seen.has(sourceKey)) continue;
+      seen.add(sourceKey);
+      const existing = await this.prisma.scenario.findUnique({ where: { sourceKey } });
+      if (existing && Date.now() - existing.createdAt.getTime() < cfg.lookbackDays * 864e5) continue; // recent dup
+
+      const clean = this.validateShocks(shocks);
+      const result = await this.simulate({
+        name: `${this.eventLabel(sig.eventType)} — ${commodity}`, category: 'Auto-detected',
+        severity: SEVERITY_MAP[sig.severity] || 'high', description: sig.summary || sig.title,
+        triggerEvent: sig.title, impactedCommodities: this.deriveImpacted(clean), shocks: clean,
+      });
+
+      const material = result.index.delta <= -cfg.materialityIndexDrop
+        || result.commodities.some((c: any) => c.deficitAfter > c.deficitBefore)
+        || result.commodities.some((c: any) => c.actionAfter === 'buy' && c.actionBefore !== 'buy');
+      if (!material) continue;
+
+      const sevEnum = result.index.delta <= -5 ? 'EXTREME' : sig.severity === 'high' ? 'HIGH' : 'MEDIUM';
+      await this.prisma.scenario.upsert({
+        where: { sourceKey },
+        create: {
+          sourceKey, name: result.scenario.name, category: 'OPERATIONAL' as any, severity: sevEnum as any,
+          description: sig.summary || sig.title, triggerEvent: sig.title, impactedCommodities: result.commodities.map((c: any) => c.commodity),
+          projectedOutcomes: { index: result.index, commodities: result.commodities } as any,
+          mitigationOptions: result.mitigations as any, isActive: 'auto',
+        },
+        update: {
+          name: result.scenario.name, severity: sevEnum as any, description: sig.summary || sig.title, triggerEvent: sig.title,
+          impactedCommodities: result.commodities.map((c: any) => c.commodity),
+          projectedOutcomes: { index: result.index, commodities: result.commodities } as any, mitigationOptions: result.mitigations as any,
+        },
+      });
+
+      // alert (dedupe: skip if an open alert already cites this sourceKey)
+      const dupAlert = await this.prisma.alert.findFirst({ where: { source: 'Auto-Scenario', metric: sourceKey } });
+      if (!dupAlert) {
+        await this.prisma.alert.create({
+          data: {
+            level: (result.index.delta <= -3 ? 'RED' : 'AMBER') as any,
+            category: (EVENT_ALERT_CATEGORY[sig.eventType] || 'SUPPLY') as any,
+            title: `${result.scenario.name}: food-security index -${Math.abs(result.index.delta)}`,
+            description: `Emerging signal "${sig.title}" would cut the index ${result.index.before}→${result.index.after}.`,
+            source: 'Auto-Scenario', metric: sourceKey,
+            recommendedAction: result.mitigations[0] || 'Review scenario and pre-position.',
+            metadata: { sourceKey, commodity } as any,
+          },
+        });
+      }
+
+      // tracked initiative (reuse Initiative table; dedupe by sourceKey)
+      const iKey = `scenario:${sourceKey}`;
+      const existingInit = await this.prisma.initiative.findUnique({ where: { sourceKey: iKey } });
+      if (!existingInit) {
+        await this.prisma.initiative.create({
+          data: {
+            sourceKey: iKey, source: 'auto-scenario', linkedCommodity: commodity,
+            title: `Respond to ${result.scenario.name}`, category: 'Contingency', targetSector: 'Food Security',
+            actionType: 'scenario-response', priority: sevEnum === 'EXTREME' ? 'critical' : 'high',
+            description: sig.summary || sig.title, rationale: result.mitigations[0] || '', status: 'suggested',
+          },
+        });
+      }
+      created++;
+    }
+    this.logger.log(`Auto-scenarios: ${created} material scenario(s) generated from ${signals.length} signals`);
+    return { created, scanned: signals.length };
+  }
+
+  private eventLabel(e: string): string {
+    return ({ 'export-ban': 'Export Ban', drought: 'Drought', logistics: 'Logistics Disruption', disease: 'Disease Outbreak', policy: 'Policy Shock', price: 'Price Spike' } as any)[e] || 'Shock';
   }
 
   // Natural-language what-if: Claude translates a prompt into shocks, then we simulate.
