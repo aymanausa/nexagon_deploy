@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useInsightsFocus } from '@/hooks/useInsightsFocus';
-import { selfSufficiencyApi, commoditiesApi, catalogApi, impactApi } from '@/lib/api';
+import { selfSufficiencyApi, commoditiesApi, catalogApi, impactApi, sustainabilityApi } from '@/lib/api';
 import {
   AlertTriangle,
   TrendingUp,
@@ -15,6 +15,8 @@ import {
   ArrowDownRight,
   Zap,
   Hexagon,
+  Droplets,
+  Leaf,
 } from 'lucide-react';
 import {
   XAxis,
@@ -125,6 +127,7 @@ export default function DashboardPage() {
   const [priceData, setPriceData] = useState<any[]>([]);
   const [priceCommodities, setPriceCommodities] = useState<string[]>([]);
   const [impact, setImpact] = useState<any>(null);
+  const [sustain, setSustain] = useState<any>(null);
   // null = show all. Otherwise the set of commodities to display.
   const [visibleSeries, setVisibleSeries] = useState<Set<string> | null>(null);
 
@@ -146,6 +149,7 @@ export default function DashboardPage() {
       .catch(() => {});
 
     impactApi.get().then(setImpact).catch(() => {});
+    sustainabilityApi.get().then(setSustain).catch(() => {});
 
     // live monthly prices (World Bank) for the commodities SELECTED in Settings
     // (catalog showOnDashboard), rebased to an index (100 = first month) so different
@@ -216,6 +220,36 @@ export default function DashboardPage() {
             </div>
           </div>
           <p className="text-[10px] text-[#64748b] mt-3">{impact.methodology}</p>
+        </div>
+      )}
+
+      {/* Sustainability Footprint (virtual water + shipping CO2) */}
+      {sustain && (
+        <div className="bg-gradient-to-br from-cyan-500/10 to-[#0f1d2f] border border-cyan-500/30 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-white flex items-center gap-2"><Leaf className="w-4 h-4 text-cyan-400" /> Sustainability Footprint <span className="text-[10px] text-[#64748b] font-normal">· live</span></h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-2xl font-bold text-cyan-400 flex items-center gap-1"><Droplets className="w-5 h-5" /> {(sustain.virtualWaterM3 / 1e9).toFixed(1)}B</p>
+              <p className="text-xs text-[#94a3b8]">m³ virtual water imported / yr</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{sustain.virtualWaterMultiple}×</p>
+              <p className="text-xs text-[#94a3b8]">of KSA renewable water (~2.4B m³)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{(sustain.co2Tonnes / 1e6).toFixed(2)}M</p>
+              <p className="text-xs text-[#94a3b8]">tonnes shipping CO₂ / yr</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{sustain.drivers?.[0]?.commodity ?? '—'}</p>
+              <p className="text-xs text-[#94a3b8]">largest water footprint</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-[#64748b] mt-3">
+            KSA effectively imports <span className="text-cyan-400">{sustain.virtualWaterMultiple}×</span> its own renewable water each year as embedded ("virtual") water in food — the case for water-smart local production &amp; sourcing. {sustain.methodology}
+          </p>
         </div>
       )}
 
