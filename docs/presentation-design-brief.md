@@ -99,12 +99,23 @@ generous whitespace. Prefer one hero number + one supporting chart per slide (do
 - Example sub-indicators: Reserves (USDA PSD), Production (FAOSTAT QCL), GeoRisk (WGI, import-weighted),
   ClimateVol (NASA POWER), Nutrition (FAO FS), Health (World Bank), Affordability (price basket).
 
-**Sustainability** (endpoint `/sustainability`)
-- **Virtual (embedded) water imported: ~39.2 billion m³ / year = 16.3× KSA's renewable water.**
-  Derivation: Σ (commodity import volume [Comtrade] × water-footprint [Water Footprint Network /
-  Mekonnen & Hoekstra averages]); ÷ KSA renewable water ≈ **2.4 billion m³** (FAO AQUASTAT).
-- Water drivers (B m³): **Barley 6.75, Wheat 6.56, Corn 5.92, Rice 4.47.**
-- **Shipping CO₂: ~1.2 million tonnes / year** (great-circle distance origin→Jeddah × volume × bulk-freight factor; ~97% of import volume has coordinates).
+**Sustainability = operational durability** (the criterion is *durable, long-term value with minimal
+manual effort* — NOT environmental sustainability). Evidence is platform capability:
+- **Runs itself:** daily `@Cron` pipelines — news-signal refresh, procurement recompute, and the
+  **autonomous scenario generator** (06:00) that stress-tests emerging threats and raises alerts +
+  tracked initiatives — all with no human prompt.
+- **Self-healing:** rate-limit backoff, staleness guards (skip if fresh), retries, graceful
+  degradation — survives flaky external APIs unattended.
+- **Config, not code:** thresholds, pillar weights, seasonal assumptions and lead times live in
+  `AppConfig`/Settings — adaptable over years with no redeploy.
+- **Durable economics:** mostly **free** public data (+1 paid key: Comtrade) — cheap to run indefinitely.
+- **Governed & documented:** methodology guideline docs + a 27-dataset tracker + reviewable assumptions.
+- **Compounding value:** completed initiatives feed back into the index — value grows over time.
+
+*ESG bonus feature* (endpoint `/sustainability`, supports water-smart localization — not this criterion's evidence):
+- Virtual (embedded) water imported **~39.2B m³/yr = 16.3× KSA's renewable water** (Σ import volume
+  [Comtrade] × water-footprint [Water Footprint Network / Mekonnen & Hoekstra]; ÷ ~2.4B m³ FAO AQUASTAT).
+  Drivers (B m³): Barley 6.75, Wheat 6.56, Corn 5.92, Rice 4.47. Shipping CO₂ ~1.2M t/yr.
 
 **Suppliers** (page `/suppliers`)
 - **~109 partner countries**, mapped, with per-commodity breakdown. Overlays: World Bank WGI
@@ -241,17 +252,18 @@ each with an owning authority (SAGO/SALIC/MEWA/SFDA) and a status lifecycle.
 - **Visual:** auto-detected scenario cards appear ("Red Sea corridor disruption · 71→70"); then a NL box *"What if the Red Sea closes?"* → the map reroutes around Africa, index dips, commodities flip to BUY, a mitigation appears.
 - **Layout:** split — auto cards top, the NL→result animation bottom.
 - **VO:** "New? Nexagon lets a decision-maker run a national crisis simulation in a sentence — and it already caught real Red Sea and Hormuz threats on its own."
-- **Transition:** a water-drop ripples in for sustainability.
+- **Transition:** the loop ring keeps turning into the next slide.
 
-### Slide 8 — SUSTAINABILITY (15%) · "Is it responsible?" (3:05–3:35)
-- **Objective:** the water insight + water-smart sourcing.
-- **Big idea:** we import 16× our renewable water.
-- **Headline:** *"We import 16× our renewable water. Nexagon makes sourcing water-smart."*
-- **Body:** virtual water quantified; a water-footprint + food-miles/CO₂ lens steers water-smart, lower-emission sourcing & local production; right-timed procurement cuts waste; low-cost; governed.
-- **Featured data (source: `/sustainability`):** 39.2B m³/yr virtual water = 16.3×; drivers Barley/Wheat/Corn/Rice; 1.2M t CO₂.
-- **Visual:** the **Sustainability Footprint** panel; the **16.3×** lands as a huge number; a water-drop / two-bar comparison (imports vs renewable water).
-- **Layout:** giant 16.3× center-left; supporting stats + drivers right.
-- **VO:** "Responsible? Nexagon reveals that our food imports carry sixteen times our own renewable water — and turns that into a water-smart sourcing and localization strategy."
+### Slide 8 — SUSTAINABILITY (15%) · "Will it last, without babysitting?" (3:05–3:35)
+- **Criterion definition:** *durable, long-term value with minimal manual effort* — NOT environmental sustainability. Design the slide around **self-running durability**, not water.
+- **Objective:** prove Nexagon keeps delivering, adapts, and improves without a team maintaining it.
+- **Big idea:** it runs, heals, and improves itself.
+- **Headline:** *"It runs, heals, and improves itself."*  (alt: *"Durable value — minimal upkeep."*)
+- **Body:** scheduled pipelines refresh signals, recompute procurement and **auto-generate + stress-test scenarios daily** with no human prompt; self-healing ingestion (backoff, staleness guards, retries) on **mostly free** data; weights/thresholds/assumptions are **config, not code**; new sources/commodities/countries plug in and proxies upgrade to authoritative KSA feeds; the closed loop feeds outcomes back so **value compounds**.
+- **Featured data / proof (source: platform):** daily `@Cron` jobs (news, procurement, auto-scenarios); `AppConfig` tunables in Settings; runs on free public data (+1 paid key); governed methodology docs + 27-dataset tracker. *(ESG bonus: a virtual-water/CO₂ lens ships at `/sustainability` — 39.2B m³ = 16.3× — supporting water-smart localization, but it is not this criterion's evidence.)*
+- **Visual:** the **loop ring rotating on its own** with a live "auto-updated 06:00" timestamp; beside/under it a small **Settings config panel** (weight & threshold sliders) and an **"auto-detected" scenario card** popping in — the motif is *hands-off*. Icons: clock/cron, a self-healing/retry arrow-loop, a sliders/config glyph.
+- **Layout:** rotating loop ring as the hero (left/centre); on the right a vertical stack of 3 "runs-itself" call-outs — *Auto-updates daily* · *Self-heals on API limits* · *Tune in config, not code* — plus a small "compounds over time" note.
+- **VO:** "Will it last? It runs, heals and updates itself on a schedule — no team babysitting it — and because the loop feeds results back in, it gets more valuable the longer it runs."
 - **Transition:** the map zooms out KSA → GCC.
 
 ### Slide 9 — SCALABILITY (10%) · "Will it grow?" (3:35–3:55)

@@ -100,18 +100,24 @@ by live **GDELT** signals (the Red Sea/Hormuz scenarios were auto-generated from
 **VO:** "New? Nexagon lets a decision-maker run a national crisis simulation in a sentence — and it
 already caught real Red Sea and Hormuz threats on its own."
 
-## Slide 8 — SUSTAINABILITY (15%) · "Is it responsible?" · (3:05–3:35)
-**Answer line:** **"We import 16× our renewable water. Nexagon makes sourcing water-smart."**
+## Slide 8 — SUSTAINABILITY (15%) · "Will it last, without babysitting?" · (3:05–3:35)
+*(Criterion definition: durable, long-term value with minimal manual effort.)*
+**Answer line:** **"It runs, heals, and improves itself."**
 **Proof:**
-- **39.2B m³/yr** of virtual (embedded) water imported through food = **16.3× KSA's renewable water.**
-- A **water-footprint + food-miles/CO₂** lens steers toward water-smart, lower-emission sourcing & local production.
-- Right-timed procurement cuts waste; runs on low-cost data; governed, reviewable assumptions.
-**Visual/motion:** the **Sustainability Footprint** panel — the 16.3× number lands hard; a water-drop motif.
-**Source:** virtual water = **UN Comtrade** import volumes × **Water Footprint Network** (Mekonnen &
-Hoekstra) water-footprint averages; KSA renewable water ~2.4B m³ = **FAO AQUASTAT**; CO₂ = route
-distance × bulk-freight emission factor. (Live at `/sustainability`.)
-**VO:** "Responsible? Nexagon reveals that our food imports carry sixteen times our own renewable
-water — and turns that into a water-smart sourcing and localization strategy."
+- **Runs itself:** scheduled pipelines refresh signals, recompute procurement, and **auto-generate +
+  stress-test scenarios daily** — raising alerts and tracked actions with no human prompt.
+- **Self-healing & low-cost:** rate-limit backoff, staleness guards and retries keep it live on flaky
+  APIs; it runs on **mostly free public data** — cheap to run for years, no per-seat licences.
+- **Adapts without a rewrite:** weights, thresholds and assumptions are **config, not code**; new
+  sources/commodities/countries plug in; proxies upgrade to authoritative KSA feeds — and the closed
+  loop feeds outcomes back, so **value compounds over time**.
+**Visual/motion:** the **loop ring turning on its own** with an "auto-updated" timestamp ticking;
+cut to the Settings config panel (weights/thresholds) and an "auto-detected" scenario appearing.
+**Source:** platform capability — `@Cron` schedulers (news / procurement / auto-scenarios), `AppConfig`
+tunables in Settings, and governed methodology docs + the 27-dataset tracker. *(An ESG virtual-water/CO₂
+lens also ships at `/sustainability`, supporting water-smart localization.)*
+**VO:** "Will it last? It runs, heals and updates itself on a schedule — no team babysitting it — and
+because the loop feeds results back in, it gets more valuable the longer it runs."
 
 ## Slide 9 — SCALABILITY (10%) · "Will it grow?" · (3:35–3:55)
 **Answer line:** **"From one commodity to the whole GCC — no rewrite."**

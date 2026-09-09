@@ -65,13 +65,29 @@ headline (incl. Red Sea/Hormuz corridor threats) into a quantified impact + reco
 
 ## 5. Sustainability — 15% · **86**
 
-- **Economic:** right-timed procurement and reserve optimization reduce waste and cost; runs on
-  low-cost free data.
-- **Environmental / resource:** an explicit **Water** sub-indicator (KSA is water-scarce) steers
-  toward water-appropriate local production and away from water-intensive crops; climate-stress
-  overlays push resilient sourcing.
-- **Institutional:** transparent, documented, config-driven assumptions reviewable by GASTAT/SAGO —
-  built to be maintained and governed, not a throwaway prototype.
+**Definition used (per the criteria):** *durable, long-term value without heavy manual effort* —
+does the solution keep delivering, adapt, and improve without constant upkeep?
+
+- **Runs itself:** scheduled `@Cron` pipelines keep every module current unattended — news signals,
+  procurement recompute, and an **autonomous daily scenario generator** that raises alerts and
+  tracked initiatives with no human prompt. Value is produced continuously, hands-off.
+- **Self-healing:** rate-limit backoff, staleness guards, retries, and graceful degradation let it
+  survive flaky external APIs without babysitting.
+- **Config over code:** thresholds, weights, seasonal assumptions, and lead times are tunable in
+  Settings/`AppConfig` — it adapts over years with zero engineering and no redeploy.
+- **Durable economics:** mostly **free** public data (+1 paid key) — cheap to run indefinitely; no
+  per-seat licences.
+- **Governed & documented:** methodology guidelines + a 27-dataset tracker + reviewable assumptions
+  → durable institutional knowledge and easy handover; built to be maintained, not a throwaway prototype.
+- **Evolves without rewrite:** source-agnostic — proxies upgrade to authoritative feeds and new
+  commodities/sources/countries plug in via config.
+- **Compounding value:** the closed loop feeds outcomes back into the index, so value grows over time.
+
+*(A virtual-water/CO₂ sourcing lens also exists as an ESG product feature and supports the
+"water-smart localization" objective — but the criterion here is operational durability.)*
+
+**Honest gap:** the demo stack runs in dev mode (a production build is a roadmap item), and a couple
+of external endpoints are unofficial (hardened with backoff, but managed data contracts would harden further).
 
 ## 6. Scalability — 10% · **90**
 

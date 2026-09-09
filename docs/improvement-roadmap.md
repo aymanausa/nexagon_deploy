@@ -9,7 +9,7 @@ return-on-effort.
 | Criterion | Now | Max | Headroom | What's capping it |
 |---|---|---|---|---|
 | Novelty | 12.6 | 15 | **2.4** | building blocks are established techniques |
-| Sustainability | 12.9 | 15 | **2.1** | environmental angle (water) is thin |
+| Sustainability | 12.9 | 15 | **2.1** | *durability* criterion — dev-mode deploy; some unofficial endpoints |
 | AI & Emerging Tech | 18.2 | 20 | **1.8** | classical OLS forecasting; no conversational agent |
 | Impact | 23.3 | 25 | **1.7** | impact is qualitative — no quantified value; proxy data |
 | Feasibility | 13.5 | 15 | **1.5** | no hosted demo / pilot plan; proxy + unofficial endpoints |
@@ -26,9 +26,13 @@ methodology, plus the real total import-value base and import-value-at-risk. Sec
 **compound/cascade scenarios** (second-order effects); emphasize the live **satellite + news + trade
 + disease fusion** into one autonomous index.
 
-**Sustainability (→ ~14).** Turn the lone Water sub-indicator into a **sourcing sustainability lens**:
-**food-miles / CO₂ per import route** (computable from supplier coordinates) + a water-footprint flag,
-and let the procurement optimizer prefer lower-emission, water-smart origins.
+**Sustainability (→ ~14).** *Criterion = durable, long-term value with minimal manual effort.* Nexagon
+is already strong here (self-running `@Cron` pipelines, self-healing ingestion, config-not-code tuning,
+free-data economics, the compounding loop). To lift the last points: ship a **production build**
+(multi-stage `next build`/`nest build`, process manager) so "runs itself" holds under real traffic;
+land ≥1 **authoritative feed** to retire unofficial endpoints; and surface the autonomy in-product (a
+"last auto-updated" / scheduled-jobs status strip) so durability is *visible*, not just true.
+*(The virtual-water/CO₂ lens is an ESG product feature + water-smart-localization support — it does not move this criterion.)*
 
 **AI & Emerging Tech (→ ~19.5).** A real **AI copilot** — tool-using agent over the live modules
 ("why is wheat BUY?"). An **ML forecast** (trained seasonal model + confidence intervals) beyond OLS.
@@ -42,7 +46,7 @@ area codes — the architecture already supports it).
 ## Prioritized shortlist (buildable now, no new paid data)
 
 1. **Quantified impact/savings KPI panel** — unlocks Impact and strengthens the whole pitch. *(highest ROI — building first)*
-2. **Sustainability sourcing lens** (food-miles/CO₂ + water) — 2.1 headroom, from data we have.
+2. **Durability wins** (production build + a "last auto-updated / scheduled-jobs" status strip) — makes the self-running Sustainability story visible. *(The food-miles/CO₂ + water lens already shipped as an ESG feature.)*
 3. **AI copilot** (tool-using agent over modules) — lifts AI *and* Novelty; strong demo.
 4. **Arabic NL what-if + cascade scenarios** — lifts Novelty (biggest gap).
 5. **Hosted demo + pilot/partnership one-pager** — cheap Feasibility win.
