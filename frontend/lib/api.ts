@@ -111,6 +111,10 @@ export const simulationApi = {
   autoGenerate: () => apiFetch('/v1/simulation/auto-generate', { method: 'POST' }),
 };
 
+export const impactApi = {
+  get: () => apiFetch('/v1/impact'),
+};
+
 export const initiativesApi = {
   list: () => apiFetch('/v1/initiatives'),
   generate: () => apiFetch('/v1/initiatives/generate', { method: 'POST' }),

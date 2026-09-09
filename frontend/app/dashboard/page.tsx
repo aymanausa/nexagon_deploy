@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useInsightsFocus } from '@/hooks/useInsightsFocus';
-import { selfSufficiencyApi, commoditiesApi, catalogApi } from '@/lib/api';
+import { selfSufficiencyApi, commoditiesApi, catalogApi, impactApi } from '@/lib/api';
 import {
   AlertTriangle,
   TrendingUp,
@@ -124,6 +124,7 @@ export default function DashboardPage() {
   const [ssYear, setSsYear] = useState<number | null>(null);
   const [priceData, setPriceData] = useState<any[]>([]);
   const [priceCommodities, setPriceCommodities] = useState<string[]>([]);
+  const [impact, setImpact] = useState<any>(null);
   // null = show all. Otherwise the set of commodities to display.
   const [visibleSeries, setVisibleSeries] = useState<Set<string> | null>(null);
 
@@ -143,6 +144,8 @@ export default function DashboardPage() {
         setSsYear((r.commodities || []).map((c: any) => c.year).filter(Boolean).sort().pop() || null);
       })
       .catch(() => {});
+
+    impactApi.get().then(setImpact).catch(() => {});
 
     // live monthly prices (World Bank) for the commodities SELECTED in Settings
     // (catalog showOnDashboard), rebased to an index (100 = first month) so different
@@ -184,8 +187,38 @@ export default function DashboardPage() {
 
   const PRICE_COLORS = ['#c8a45c', '#0d8a5f', '#7c3aed', '#3b82f6', '#ef4444', '#f59e0b', '#06b6d4', '#ec4899', '#84cc16', '#f97316'];
 
+  const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
+
   return (
     <DashboardLayout>
+      {/* Economic Impact (live from Comtrade + price volatility) */}
+      {impact && (
+        <div className="bg-gradient-to-br from-[#c8a45c]/10 to-[#0f1d2f] border border-[#c8a45c]/30 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-white flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#c8a45c]" /> Economic Impact <span className="text-[10px] text-[#64748b] font-normal">· live</span></h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-2xl font-bold text-white">{fmtUsd(impact.totalImportValueUsd)}</p>
+              <p className="text-xs text-[#94a3b8]">Tracked food-import value / yr</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-emerald-400">{fmtUsd(impact.estimatedAnnualSavingUsd)}</p>
+              <p className="text-xs text-[#94a3b8]">Est. timing opportunity ({Math.round(impact.captureRate * 100)}% capture)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-red-400">{fmtUsd(impact.valueAtRiskUsd)}</p>
+              <p className="text-xs text-[#94a3b8]">Import value at high-risk origins ({impact.valueAtRiskPct}%)</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">{impact.topOrigin?.pct ?? 0}%</p>
+              <p className="text-xs text-[#94a3b8]">Top-origin concentration{impact.topOrigin ? ` (${impact.topOrigin.name})` : ''}</p>
+            </div>
+          </div>
+          <p className="text-[10px] text-[#64748b] mt-3">{impact.methodology}</p>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
         {kpiCards.map((kpi) => (
