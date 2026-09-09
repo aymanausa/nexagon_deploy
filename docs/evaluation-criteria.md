@@ -90,3 +90,7 @@ Nexagon scores **~89.5/100** weighted. Its strengths are **impact** (a live, end
 food-security decision system) and **AI/emerging tech** (LLM-driven, autonomous, multi-source). It
 is **feasible today** and **scalable by design**. The honest opportunities — authoritative KSA data
 feeds and ML forecasting — are already mapped in the data-sources tracker and roadmap.
+
+**To raise the score toward the ceiling, see `improvement-roadmap.md`** — per-criterion headroom and
+the prioritized, buildable moves (quantified impact panel, sustainability sourcing lens, AI copilot,
+Arabic/cascade scenarios).
