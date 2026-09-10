@@ -31,6 +31,8 @@ export default function ScenariosPage() {
   // custom builder state
   const [showBuilder, setShowBuilder] = useState(false);
   const [importCuts, setImportCuts] = useState<Record<string, number>>({});
+  const [productionCuts, setProductionCuts] = useState<Record<string, number>>({});
+  const [priceShock, setPriceShock] = useState(0);
   const [demandSurge, setDemandSurge] = useState(0);
   const [offline, setOffline] = useState('');
   // natural-language state
@@ -38,35 +40,54 @@ export default function ScenariosPage() {
   const [interpreted, setInterpreted] = useState<any>(null);
   // auto-detected scenarios
   const [auto, setAuto] = useState<any[]>([]);
+  const [err, setErr] = useState<string | null>(null);
 
   const loadAuto = () => simulationApi.listAuto().then((r) => setAuto(r.scenarios || [])).catch(() => {});
   useEffect(() => { simulationApi.templates().then((r) => setTemplates(r.templates || [])).catch(() => {}); loadAuto(); }, []);
 
   const run = async (key: string) => {
-    setRunning(key); setResult(null); setInterpreted(null);
-    try { setResult(await simulationApi.run(key)); } catch {} finally { setRunning(null); }
+    setRunning(key); setResult(null); setInterpreted(null); setErr(null);
+    try { setResult(await simulationApi.run(key)); }
+    catch (e: any) { setErr(e?.message || 'Failed to run scenario.'); }
+    finally { setRunning(null); }
   };
 
   const runNl = async () => {
     if (!nlPrompt.trim()) return;
-    setRunning('nl'); setResult(null); setInterpreted(null);
+    setRunning('nl'); setResult(null); setInterpreted(null); setErr(null);
     try {
       const r = await simulationApi.runNl(nlPrompt.trim());
       setInterpreted(r.interpreted); setResult(r);
-    } catch {} finally { setRunning(null); }
+    }
+    catch (e: any) { setErr(e?.message || 'Could not interpret that scenario — try rephrasing.'); }
+    finally { setRunning(null); }
   };
 
   const runCustom = async () => {
     const importCutPct: Record<string, number> = {};
     for (const [k, v] of Object.entries(importCuts)) if (v > 0) importCutPct[k] = v;
+    const productionCutPct: Record<string, number> = {};
+    for (const [k, v] of Object.entries(productionCuts)) if (v > 0) productionCutPct[k] = v;
     const suppliersOffline = offline.split(',').map((s) => s.trim().toUpperCase()).filter((s) => /^[A-Z]{2}$/.test(s));
     const shocks: any = {};
     if (Object.keys(importCutPct).length) shocks.importCutPct = importCutPct;
+    if (Object.keys(productionCutPct).length) shocks.productionCutPct = productionCutPct;
     if (demandSurge > 0) shocks.demandSurgePct = demandSurge;
     if (suppliersOffline.length) shocks.suppliersOffline = suppliersOffline;
-    if (!Object.keys(shocks).length) return;
-    setRunning('custom'); setResult(null); setInterpreted(null);
-    try { setResult(await simulationApi.runCustom(shocks, 'Custom what-if')); } catch {} finally { setRunning(null); }
+    // a price shock applies to the affected commodities (or all builder commodities if none set)
+    if (priceShock > 0) {
+      const affected = [...new Set([...Object.keys(importCutPct), ...Object.keys(productionCutPct)])];
+      const targets = affected.length ? affected : BUILDER_COMMODITIES;
+      shocks.priceShockPct = Object.fromEntries(targets.map((c) => [c, priceShock]));
+    }
+    if (!Object.keys(shocks).length) {
+      setErr('Set at least one shock — e.g. a production cut for a drought/El Niño risk, an import cut, a demand surge, or suppliers offline.');
+      return;
+    }
+    setRunning('custom'); setResult(null); setInterpreted(null); setErr(null);
+    try { setResult(await simulationApi.runCustom(shocks, 'Custom what-if')); }
+    catch (e: any) { setErr(e?.message || 'Failed to run custom scenario.'); }
+    finally { setRunning(null); }
   };
 
   return (
@@ -171,10 +192,26 @@ export default function ScenariosPage() {
                 </div>
               ))}
             </div>
+            <p className="text-xs text-[#94a3b8] mb-3">Production cut % per commodity — for climate/drought risks like El Niño (0 = unaffected):</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+              {BUILDER_COMMODITIES.map((c) => (
+                <div key={c}>
+                  <label className="block text-[11px] text-[#94a3b8] mb-1">{c}</label>
+                  <input type="number" min={0} max={100} value={productionCuts[c] || 0}
+                    onChange={(e) => setProductionCuts((m) => ({ ...m, [c]: Number(e.target.value) }))}
+                    className="w-full bg-[#080e1a] border border-[#1a2d45] rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-[#c8a45c]" />
+                </div>
+              ))}
+            </div>
             <div className="flex flex-wrap items-end gap-4">
               <div>
                 <label className="block text-[11px] text-[#94a3b8] mb-1">Demand surge %</label>
                 <input type="number" min={0} max={100} value={demandSurge} onChange={(e) => setDemandSurge(Number(e.target.value))}
+                  className="w-28 bg-[#080e1a] border border-[#1a2d45] rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-[#c8a45c]" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-[#94a3b8] mb-1">Price shock %</label>
+                <input type="number" min={0} max={100} value={priceShock} onChange={(e) => setPriceShock(Number(e.target.value))}
                   className="w-28 bg-[#080e1a] border border-[#1a2d45] rounded-lg px-2 py-1.5 text-sm text-white outline-none focus:border-[#c8a45c]" />
               </div>
               <div className="flex-1 min-w-[200px]">
@@ -191,6 +228,13 @@ export default function ScenariosPage() {
           </div>
         )}
       </div>
+
+      {/* Error banner */}
+      {err && (
+        <div className="bg-red-500/10 border border-red-500/40 rounded-xl px-4 py-3 text-sm text-red-300">
+          {err}
+        </div>
+      )}
 
       {/* Result panel */}
       {result && (
