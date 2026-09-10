@@ -85,40 +85,91 @@ localhost only (or remove their `ports:` entirely — the frontend reaches the b
 ```
 Then `docker compose up -d` to apply.
 
-**b) Firewall (ufw):**
+**b) Firewall (ufw).** Since **Cloudflare** proxies all traffic, only Cloudflare's edge should reach
+your origin — don't leave 80/443 open to the whole internet:
 ```bash
 sudo ufw allow OpenSSH
-sudo ufw allow 'Nginx Full'   # 80 + 443
+# allow HTTPS only from Cloudflare's IP ranges (edge → origin)
+for ip in $(curl -s https://www.cloudflare.com/ips-v4); do sudo ufw allow from $ip to any port 443 proto tcp; done
+for ip in $(curl -s https://www.cloudflare.com/ips-v6); do sudo ufw allow from $ip to any port 443 proto tcp; done
 sudo ufw enable
 ```
+(If you use a **Cloudflare Tunnel** — Option B below — you don't open 443 at all; skip these `allow` lines.)
 
-## 7. Reverse proxy + HTTPS (Nginx + Let's Encrypt)
+## 7. HTTPS via Cloudflare + Nginx reverse proxy
 
+SSL is handled by **Cloudflare** (TLS terminates at Cloudflare's edge), so there is **no certbot /
+Let's Encrypt on the origin**. Two supported ways to connect Cloudflare to this VPS — pick one.
+
+**In the Cloudflare dashboard first:** add your domain, and create a DNS record for the app
+(e.g. `nexagon`) pointing at the VPS IP with the **proxy enabled (orange cloud)**. Then set
+**SSL/TLS → Overview → Full (strict)** so the edge↔origin hop is also encrypted and validated.
+
+### Option A — Nginx with a Cloudflare Origin Certificate (recommended)
+
+1. In Cloudflare: **SSL/TLS → Origin Server → Create Certificate** (free, valid 15 years). Save the
+   cert and key to the VPS, e.g. `/etc/ssl/cloudflare/nexagon.pem` and `nexagon.key`.
+2. Install Nginx and configure it to listen on 443 with that origin cert:
+   ```bash
+   sudo apt install -y nginx
+   ```
+   `/etc/nginx/sites-available/nexagon`:
+   ```nginx
+   server {
+       listen 443 ssl;
+       listen [::]:443 ssl;
+       server_name nexagon.example.sa;
+
+       ssl_certificate     /etc/ssl/cloudflare/nexagon.pem;
+       ssl_certificate_key /etc/ssl/cloudflare/nexagon.key;
+
+       location / {
+           proxy_pass http://127.0.0.1:3001;
+           proxy_http_version 1.1;
+           proxy_set_header Host $host;
+           # real visitor IP comes from Cloudflare, not the edge IP
+           proxy_set_header X-Real-IP $http_cf_connecting_ip;
+           proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
+           proxy_set_header X-Forwarded-Proto $scheme;
+           proxy_set_header Upgrade $http_upgrade;      # websockets
+           proxy_set_header Connection "upgrade";
+       }
+   }
+   ```
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/nexagon /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+3. (Recommended) Turn on **Authenticated Origin Pulls** in Cloudflare so Nginx only accepts the
+   Cloudflare edge, and enable **Always Use HTTPS** so visitors are redirected to `https://`.
+
+Once DNS (orange cloud) is set, the site is live on `https://nexagon.example.sa` — Cloudflare renews
+edge certs automatically; the origin cert is valid 15 years.
+
+### Option B — Cloudflare Tunnel (no open inbound ports)
+
+Even simpler and more secure: run `cloudflared`, which dials **out** to Cloudflare, so the VPS needs
+**no inbound 80/443** at all.
 ```bash
-sudo apt install -y nginx certbot python3-certbot-nginx
+# install cloudflared, then:
+cloudflared tunnel login
+cloudflared tunnel create nexagon
+# route the hostname to the tunnel, pointing at the local frontend:
+cloudflared tunnel route dns nexagon nexagon.example.sa
 ```
-`/etc/nginx/sites-available/nexagon`:
-```nginx
-server {
-    server_name nexagon.example.sa;
-    location / {
-        proxy_pass http://127.0.0.1:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header Upgrade $http_upgrade;      # websockets
-        proxy_set_header Connection "upgrade";
-    }
-}
+`~/.cloudflared/config.yml`:
+```yaml
+tunnel: <tunnel-id>
+credentials-file: /root/.cloudflared/<tunnel-id>.json
+ingress:
+  - hostname: nexagon.example.sa
+    service: http://localhost:3001
+  - service: http_404
 ```
 ```bash
-sudo ln -s /etc/nginx/sites-available/nexagon /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d nexagon.example.sa    # auto-configures HTTPS + renewal
+sudo cloudflared service install   # run the tunnel as a systemd service
 ```
-Point your domain's **A record** at the VPS IP first. After certbot, the site is live on `https://`.
+No Nginx or origin cert needed; Cloudflare handles TLS end-to-end and the origin stays fully closed.
 
 ## 8. First-run tasks
 
@@ -143,8 +194,8 @@ Point your domain's **A record** at the VPS IP first. After certbot, the site is
 ## 10. Checklist before you demo publicly
 - [ ] `backend/.env` created with real keys (not committed).
 - [ ] `JWT_SECRET`, `POSTGRES_PASSWORD`/`DATABASE_URL`, `CORS_ORIGINS` changed from defaults.
-- [ ] Internal ports bound to `127.0.0.1` (or removed); firewall on.
-- [ ] Nginx + HTTPS via certbot; domain A record set.
+- [ ] Internal ports bound to `127.0.0.1` (or removed); firewall on (443 restricted to Cloudflare IPs, or Tunnel = no open ports).
+- [ ] Cloudflare: DNS record proxied (orange cloud), SSL/TLS mode **Full (strict)**; Nginx origin cert (Option A) or Tunnel running (Option B).
 - [ ] Default admin password changed.
 - [ ] `/live-data` shows sources ACTIVE.
 
