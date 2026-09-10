@@ -66,6 +66,15 @@ git clone <your-nexamind-repo> ~/nexagon && cd ~/nexagon/v2
 # (or from your machine: scp -r nexamind/v2 aymanausa@<vps-ip>:~/nexagon && ssh aymanausa@<vps-ip>)
 ```
 
+**Already uploaded the code as `root`?** Move it into `aymanausa`'s home and hand over ownership
+(run as `root`/sudo), so the deploy user owns every file:
+```bash
+sudo mv /root/nexagon /home/aymanausa/nexagon              # if it's under root's home
+sudo chown -R aymanausa:aymanausa /home/aymanausa/nexagon  # recursive ownership
+```
+(If you left it elsewhere, e.g. `/opt/nexagon`, skip the `mv` and just
+`sudo chown -R aymanausa:aymanausa /opt/nexagon`.) Then continue as `aymanausa` from that directory.
+
 ## 4. Configure secrets (required)
 
 **a) API keys** — create `backend/.env` (gitignored; never commit it):
