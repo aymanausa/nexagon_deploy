@@ -33,6 +33,7 @@ export const dashboardApi = {
   getKpis: () => apiFetch('/v1/dashboard/kpis'),
   getLatestPrices: () => apiFetch('/v1/dashboard/prices/latest'),
   getRecentAlerts: () => apiFetch('/v1/dashboard/alerts/recent'),
+  getAutomationStatus: () => apiFetch('/v1/dashboard/automation/status'),
 };
 
 export const alertsApi = {

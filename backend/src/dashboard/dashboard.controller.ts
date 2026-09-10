@@ -31,4 +31,12 @@ export class DashboardController {
   async getRecentAlerts() {
     return this.service.getRecentAlerts();
   }
+
+  @Get('automation/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get self-running pipeline freshness (durability strip)' })
+  async getAutomationStatus() {
+    return this.service.getAutomationStatus();
+  }
 }

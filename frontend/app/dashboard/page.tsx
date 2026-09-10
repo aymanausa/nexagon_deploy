@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { useInsightsFocus } from '@/hooks/useInsightsFocus';
-import { selfSufficiencyApi, commoditiesApi, catalogApi, impactApi, sustainabilityApi } from '@/lib/api';
+import { selfSufficiencyApi, commoditiesApi, catalogApi, impactApi, sustainabilityApi, dashboardApi } from '@/lib/api';
 import {
   AlertTriangle,
   TrendingUp,
@@ -128,6 +128,7 @@ export default function DashboardPage() {
   const [priceCommodities, setPriceCommodities] = useState<string[]>([]);
   const [impact, setImpact] = useState<any>(null);
   const [sustain, setSustain] = useState<any>(null);
+  const [automation, setAutomation] = useState<any>(null);
   // null = show all. Otherwise the set of commodities to display.
   const [visibleSeries, setVisibleSeries] = useState<Set<string> | null>(null);
 
@@ -150,6 +151,7 @@ export default function DashboardPage() {
 
     impactApi.get().then(setImpact).catch(() => {});
     sustainabilityApi.get().then(setSustain).catch(() => {});
+    dashboardApi.getAutomationStatus().then(setAutomation).catch(() => {});
 
     // live monthly prices (World Bank) for the commodities SELECTED in Settings
     // (catalog showOnDashboard), rebased to an index (100 = first month) so different
@@ -193,8 +195,34 @@ export default function DashboardPage() {
 
   const fmtUsd = (v: number) => v >= 1e9 ? `$${(v / 1e9).toFixed(1)}B` : v >= 1e6 ? `$${(v / 1e6).toFixed(0)}M` : `$${v.toLocaleString()}`;
 
+  const fmtAge = (h: number | null) =>
+    h === null ? 'no data' : h < 1 ? `${Math.round(h * 60)}m ago` : h < 48 ? `${Math.round(h)}h ago` : `${Math.round(h / 24)}d ago`;
+
   return (
     <DashboardLayout>
+      {/* "Runs itself" durability strip — live freshness of the self-running pipelines */}
+      {automation && (
+        <div className="bg-[#0f1d2f] border border-[#1a2d45] rounded-xl px-4 py-3 mb-6 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div className="flex items-center gap-2 text-sm text-white font-medium">
+            <Zap className="w-4 h-4 text-[#c8a45c]" /> Runs itself
+            <span className="text-[10px] text-[#64748b] font-normal">
+              · {automation.healthy}/{automation.total} pipelines current
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+            {automation.pipelines.map((p: any) => (
+              <div key={p.label} className="flex items-center gap-1.5 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full ${p.fresh ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                <span className="text-[#94a3b8]">{p.label}</span>
+                <span className="text-[#64748b]" title={`schedule: ${p.schedule}`}>
+                  <Clock className="w-3 h-3 inline mb-0.5" /> {fmtAge(p.ageHours)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Economic Impact (live from Comtrade + price volatility) */}
       {impact && (
         <div className="bg-gradient-to-br from-[#c8a45c]/10 to-[#0f1d2f] border border-[#c8a45c]/30 rounded-xl p-5 mb-6">
