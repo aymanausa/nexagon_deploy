@@ -26,19 +26,44 @@ The browser only talks to the **frontend**; it server-side-proxies `/api` to the
 
 - A VPS: **Ubuntu 22.04+**, **>= 2 vCPU / 4 GB RAM / 20 GB disk** (dev servers + Postgres).
 - A domain name pointed at the VPS (optional but recommended for HTTPS).
-- **Docker Engine + Compose plugin:**
-  ```bash
-  curl -fsSL https://get.docker.com | sh
-  sudo usermod -aG docker $USER   # re-login after this
-  docker compose version          # confirm v2+
-  ```
+
+### 2a. Create the deploy user (`aymanausa`)
+
+Don't run the stack as `root`. Create a dedicated non-root sudo user and **do the entire rest of this
+guide logged in as that user**. Run these once, as `root` (or an existing sudo user):
+
+```bash
+# create the user with a home dir and bash shell, then set a password
+sudo adduser aymanausa                 # prompts for a password (or: sudo adduser --gecos "" aymanausa)
+sudo usermod -aG sudo aymanausa        # grant sudo
+
+# (recommended) copy your SSH key so you can log in as aymanausa directly
+sudo rsync --archive --chown=aymanausa:aymanausa ~/.ssh /home/aymanausa
+```
+
+Now **log out and log back in as `aymanausa`** (`ssh aymanausa@<vps-ip>`). Everything below — Docker,
+cloning, `docker compose`, backups — runs as this user, and the project lives under its home
+(e.g. `/home/aymanausa/nexagon`).
+
+> After the Docker step below adds `aymanausa` to the `docker` group, this user can manage the stack
+> without `sudo` for `docker` commands (`sudo` is still needed for firewall/Nginx/system tasks).
+
+### 2b. Docker Engine + Compose plugin
+
+Logged in **as `aymanausa`**, install Docker (so `$USER` below resolves to `aymanausa`):
+```bash
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER   # adds aymanausa to the docker group; re-login after this
+docker compose version          # confirm v2+
+```
 
 ## 3. Get the code
 
+As `aymanausa`, from its home directory:
 ```bash
 # from your machine, or clone if you have a git remote
-git clone <your-nexamind-repo> nexagon && cd nexagon/v2
-# (or: scp -r nexamind/v2 user@vps:/opt/nexagon && ssh in)
+git clone <your-nexamind-repo> ~/nexagon && cd ~/nexagon/v2
+# (or from your machine: scp -r nexamind/v2 aymanausa@<vps-ip>:~/nexagon && ssh aymanausa@<vps-ip>)
 ```
 
 ## 4. Configure secrets (required)
@@ -192,6 +217,7 @@ No Nginx or origin cert needed; Cloudflare handles TLS end-to-end and the origin
 - **Scheduled jobs** (news, procurement, auto-scenarios) run inside the backend via `@Cron` — no extra setup.
 
 ## 10. Checklist before you demo publicly
+- [ ] Deploying as the non-root user **`aymanausa`** (in `sudo` + `docker` groups); project under `~/nexagon`.
 - [ ] `backend/.env` created with real keys (not committed).
 - [ ] `JWT_SECRET`, `POSTGRES_PASSWORD`/`DATABASE_URL`, `CORS_ORIGINS` changed from defaults.
 - [ ] Internal ports bound to `127.0.0.1` (or removed); firewall on (443 restricted to Cloudflare IPs, or Tunnel = no open ports).
