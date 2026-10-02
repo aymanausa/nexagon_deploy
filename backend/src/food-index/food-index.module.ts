@@ -5,5 +5,6 @@ import { FoodIndexController } from './food-index.controller';
 @Module({
   providers: [FoodIndexService],
   controllers: [FoodIndexController],
+  exports: [FoodIndexService],
 })
 export class FoodIndexModule {}

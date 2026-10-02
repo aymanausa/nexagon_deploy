@@ -7,5 +7,6 @@ import { DemandModule } from '../demand/demand.module';
   imports: [DemandModule], // for DemandService (demand projections)
   providers: [ProcurementService],
   controllers: [ProcurementController],
+  exports: [ProcurementService],
 })
 export class ProcurementModule {}

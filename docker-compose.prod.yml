@@ -1,0 +1,15 @@
+# Production overrides for the EWS stack. Run with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Secrets are read from a .env file in this directory (gitignored).
+services:
+  backend:
+    environment:
+      - JWT_SECRET=${JWT_SECRET}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CORS_ORIGINS=https://nexagon.nexamind.com.sa
+      # Optional integration keys — set in .env if you have them
+      - FAO_USERNAME=${FAO_USERNAME:-}
+      - FAO_PASSWORD=${FAO_PASSWORD:-}
+      - FAO_ACCESS_TOKEN=${FAO_ACCESS_TOKEN:-}
+      - COMTRADE_API_KEY=${COMTRADE_API_KEY:-}
+      - ANTHROPIC_WORKSPACE_ID=${ANTHROPIC_WORKSPACE_ID:-}

@@ -13,7 +13,8 @@ describe('IngestionService.runSource', () => {
       },
     };
     const failingFetcher: any = { run: async () => { throw new Error('FAOSTAT HTTP 521'); } };
-    const svc = new IngestionService(prisma, failingFetcher);
+    const unusedWorldBank: any = { run: async () => { throw new Error('should not be called on FAO source'); } };
+    const svc = new IngestionService(prisma, failingFetcher, unusedWorldBank);
 
     const result = await svc.runSource('s1');
 

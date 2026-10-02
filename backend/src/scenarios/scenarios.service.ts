@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, ScenarioCategory } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateScenarioDto } from './dto/scenario.dto';
 
@@ -7,7 +8,7 @@ export class ScenariosService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(category?: string) {
-    const where = category ? { category } : {};
+    const where: Prisma.ScenarioWhereInput = category ? { category: category as ScenarioCategory } : {};
     const scenarios = await this.prisma.scenario.findMany({ where });
     return { scenarios, count: scenarios.length };
   }

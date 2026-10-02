@@ -1,9 +1,10 @@
 import { IsString, IsOptional, IsNumber, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { AlertLevel, AlertCategory } from '@prisma/client';
 
 export class CreateAlertDto {
-  @ApiProperty() @IsEnum(['GREEN', 'AMBER', 'RED', 'BLACK']) level: string;
-  @ApiProperty() @IsEnum(['PRICE', 'SUPPLY', 'LOGISTICS', 'CLIMATE', 'GEOPOLITICAL', 'QUALITY', 'SYSTEM']) category: string;
+  @ApiProperty({ enum: AlertLevel }) @IsEnum(AlertLevel) level: AlertLevel;
+  @ApiProperty({ enum: AlertCategory }) @IsEnum(AlertCategory) category: AlertCategory;
   @ApiProperty() @IsString() title: string;
   @ApiProperty() @IsString() description: string;
   @ApiProperty() @IsString() source: string;

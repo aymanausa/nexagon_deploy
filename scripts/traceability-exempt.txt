@@ -1,0 +1,7 @@
+# Stories verified by ops-drill / manual / infra — not by an automated unit test.
+# One NEX id or an epic prefix (e.g. NEX-21) per line. See testing-and-branching-strategy.md.
+NEX-20-01
+NEX-21-01
+NEX-21-02
+NEX-21-05
+NEX-21-06
